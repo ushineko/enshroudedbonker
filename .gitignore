@@ -1,0 +1,7 @@
+work/
+out*/
+reflection_data.json
+*.kfc
+*.kfc_resources
+*.kfc.bak
+__pycache__/
