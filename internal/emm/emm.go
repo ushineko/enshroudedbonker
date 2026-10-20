@@ -130,7 +130,7 @@ func Build(ctx context.Context, o BuildOptions) (string, error) {
 
 // run executes one command, streaming its combined output line by line.
 func run(ctx context.Context, dir string, log func(string), name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // explicit argv, no shell: emm, git or cargo as configured
 	cmd.Dir = dir
 	// A child that keeps the pipe open must not hold a cancel up forever.
 	cmd.WaitDelay = 5 * time.Second
@@ -165,7 +165,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	if err != nil {
 		return fmt.Errorf("open %s: %w", src, err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	tmp := dst + ".tmp"
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
 	if err != nil {
@@ -268,7 +268,7 @@ func Run(ctx context.Context, o RunOptions) (Result, error) {
 	res := Parse(lines)
 	if err != nil {
 		if ctx.Err() != nil {
-			return res, ctx.Err()
+			return res, fmt.Errorf("emm run: %w", ctx.Err())
 		}
 		msg := err.Error()
 		if len(res.Errors) > 0 {

@@ -63,7 +63,7 @@ func ReadManifest(dir string) (Manifest, error) {
 	}
 	var m Manifest
 	if err := json.Unmarshal(b, &m); err != nil {
-		return Manifest{}, fmt.Errorf("%w: %s/mod.json does not parse: %v", ErrNotAMod, dir, err)
+		return Manifest{}, fmt.Errorf("%w: %s/mod.json does not parse: %w", ErrNotAMod, dir, err)
 	}
 	switch {
 	case !idRE.MatchString(m.ID):
@@ -101,11 +101,18 @@ func describe(dir string, m Manifest) Mod {
 // ReferencedTypes lists the resource types a mod's scripts name.
 func ReferencedTypes(dir string) []string {
 	seen := map[string]bool{}
-	_ = filepath.WalkDir(filepath.Join(dir, "src"), func(p string, d fs.DirEntry, err error) error {
+	// Root-scoped, so a symlink in a mod can't point the scan outside it.
+	root, err := os.OpenRoot(filepath.Join(dir, "src"))
+	if err != nil {
+		return []string{}
+	}
+	defer func() { _ = root.Close() }()
+	fsys := root.FS()
+	_ = fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".lua") {
 			return nil //nolint:nilerr // an unreadable file just names no types
 		}
-		b, err := os.ReadFile(p)
+		b, err := fs.ReadFile(fsys, p)
 		if err != nil {
 			return nil //nolint:nilerr // as above
 		}
@@ -176,7 +183,7 @@ func Import(libDir, src string, reserved []string, replace bool) (Mod, error) {
 		if err != nil {
 			return Mod{}, fmt.Errorf("temp dir: %w", err)
 		}
-		defer os.RemoveAll(tmp)
+		defer func() { _ = os.RemoveAll(tmp) }()
 		if err := unzip(src, tmp); err != nil {
 			return Mod{}, err
 		}
@@ -251,7 +258,7 @@ func unzip(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("open %s: %w", src, err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	root, _ := filepath.Abs(dst)
 	for _, f := range r.File {
 		p := filepath.Join(dst, f.Name) //nolint:gosec // checked against root below
@@ -280,7 +287,7 @@ func extract(f *zip.File, p string) error {
 	if err != nil {
 		return fmt.Errorf("open %s: %w", f.Name, err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	out, err := os.OpenFile(p, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("create %s: %w", p, err)
@@ -299,15 +306,18 @@ func extract(f *zip.File, p string) error {
 
 // CopyTree copies a directory recursively, regular files only.
 func CopyTree(src, dst string) error {
-	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+	// Root-scoped, so a symlink swapped in mid-walk can't escape src.
+	root, err := os.OpenRoot(src)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", src, err)
+	}
+	defer func() { _ = root.Close() }()
+	err = fs.WalkDir(root.FS(), ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(src, p)
-		if err != nil {
-			return fmt.Errorf("relative path: %w", err)
-		}
-		target := filepath.Join(dst, rel)
+		p := filepath.Join(src, rel)
+		target := filepath.Join(dst, filepath.FromSlash(rel))
 		if d.IsDir() {
 			if err := os.MkdirAll(target, 0o750); err != nil {
 				return fmt.Errorf("create %s: %w", target, err)
@@ -317,11 +327,11 @@ func CopyTree(src, dst string) error {
 		if !d.Type().IsRegular() {
 			return nil
 		}
-		in, err := os.Open(p)
+		in, err := root.Open(rel)
 		if err != nil {
 			return fmt.Errorf("open %s: %w", p, err)
 		}
-		defer in.Close()
+		defer func() { _ = in.Close() }()
 		out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 		if err != nil {
 			return fmt.Errorf("create %s: %w", target, err)
@@ -335,4 +345,8 @@ func CopyTree(src, dst string) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("copy %s: %w", src, err)
+	}
+	return nil
 }

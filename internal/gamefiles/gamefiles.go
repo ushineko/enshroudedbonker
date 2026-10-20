@@ -93,7 +93,7 @@ func ReadVersion(path string, limit int64) (Version, error) {
 	if err != nil {
 		return Version{}, fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var r io.Reader = f
 	if limit > 0 {
 		r = io.LimitReader(f, limit)
@@ -115,7 +115,7 @@ func HashFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", fmt.Errorf("hash %s: %w", path, err)
@@ -131,7 +131,7 @@ func HashPrefix(path string, n int64) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	got, err := io.Copy(h, io.LimitReader(f, n))
 	if err != nil {
@@ -161,12 +161,12 @@ func Equal(a, b string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("open %s: %w", a, err)
 	}
-	defer fa.Close()
+	defer func() { _ = fa.Close() }()
 	fb, err := os.Open(b)
 	if err != nil {
 		return false, fmt.Errorf("open %s: %w", b, err)
 	}
-	defer fb.Close()
+	defer func() { _ = fb.Close() }()
 	const chunk = 1 << 20
 	ba, bb := make([]byte, chunk), make([]byte, chunk)
 	for {

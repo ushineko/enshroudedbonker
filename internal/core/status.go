@@ -102,7 +102,7 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 	res.Install.Source = s.gameSource
 	if s.installErr != nil {
 		res.Install.Error = s.installErr.Error()
-		return res, nil
+		return res, nil //nolint:nilerr // status reports a missing install, it doesn't fail on one
 	}
 	in := s.install
 	res.Install = InstallInfo{Found: true, Source: s.gameSource, Dir: in.Dir, LibraryDir: in.LibraryDir,
@@ -112,7 +112,7 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 	fp, err := s.fingerprint()
 	if err != nil {
 		res.Gate = compat.Decision{Verdict: compat.Unsupported, Reason: err.Error()}
-		return res, nil
+		return res, nil //nolint:nilerr // an unreadable fingerprint is a verdict, not a failure
 	}
 	res.Fingerprint = &fp
 	if res.Gate, err = s.gate(); err != nil {
@@ -120,11 +120,12 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 	}
 
 	p, perr := s.pristine()
-	if perr == nil {
+	switch {
+	case perr == nil:
 		res.Pristine = PristineInfo{Present: true, Source: p.Source, Captured: p.Captured.Format("2006-01-02 15:04")}
-	} else if errors.Is(perr, build.ErrNoPristine) {
+	case errors.Is(perr, build.ErrNoPristine):
 		res.Pristine.Patched, _ = build.PatchedSigns(in)
-	} else {
+	default:
 		return res, perr
 	}
 	if res.Deployed, err = build.LoadDeployed(s.paths.Deployed); err != nil {

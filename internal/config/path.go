@@ -90,4 +90,3 @@ func xdgDir(env, fallback string) string {
 
 func configHome() string { return xdgDir("XDG_CONFIG_HOME", ".config") }
 func dataHome() string   { return xdgDir("XDG_DATA_HOME", filepath.Join(".local", "share")) }
-func cacheHome() string  { return xdgDir("XDG_CACHE_HOME", ".cache") }

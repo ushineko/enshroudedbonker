@@ -50,8 +50,10 @@ type Pristine struct {
 	Source   string          `json:"source"`
 }
 
-// Kfc and Resources are the pristine files.
-func (p *Pristine) Kfc() string       { return filepath.Join(p.Dir, steam.KfcName) }
+// Kfc is the pristine archive index.
+func (p *Pristine) Kfc() string { return filepath.Join(p.Dir, steam.KfcName) }
+
+// Resources is the pristine resource file.
 func (p *Pristine) Resources() string { return filepath.Join(p.Dir, steam.ResourcesName) }
 
 func pristineDir(root string, fp compat.Fingerprint) string { return filepath.Join(root, fp.ID()) }
@@ -194,7 +196,7 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("open %s: %w", src, err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	tmp := filepath.Join(filepath.Dir(dst), "."+filepath.Base(dst)+".enshroudedbonker-tmp")
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644) //nolint:gosec // game files are world-readable as Steam installs them
 	if err != nil {

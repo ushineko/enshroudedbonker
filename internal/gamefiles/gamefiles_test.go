@@ -178,4 +178,3 @@ func TestEqual_AcrossChunkBoundary(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, eq, "a file exactly one chunk long ends on an EOF after a full read")
 }
-

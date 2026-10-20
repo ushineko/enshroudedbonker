@@ -241,7 +241,7 @@ func CompatCheck(ctx context.Context, req CompatCheckRequest) (CompatCheckResult
 	_, out, runErr := build.Run(ctx, build.Options{Install: s.install, Pristine: p, Emm: emmPath,
 		Mods: all, Shadow: s.paths.Shadow, Log: s.emmLog()})
 	if ctx.Err() != nil {
-		return CompatCheckResult{}, ctx.Err()
+		return CompatCheckResult{}, fmt.Errorf("compat check: %w", ctx.Err())
 	}
 	if runErr == nil {
 		for _, n := range names {
@@ -254,7 +254,7 @@ func CompatCheck(ctx context.Context, req CompatCheckRequest) (CompatCheckResult
 			_, one, err := build.Run(ctx, build.Options{Install: s.install, Pristine: p, Emm: emmPath,
 				Mods: []build.ModSpec{{Name: n, Builtin: true}}, Shadow: s.paths.Shadow, Log: s.emmLog()})
 			if ctx.Err() != nil {
-				return CompatCheckResult{}, ctx.Err()
+				return CompatCheckResult{}, fmt.Errorf("compat check: %w", ctx.Err())
 			}
 			tv := tweakVerdict(n, one)
 			if err != nil {

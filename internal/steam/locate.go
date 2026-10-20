@@ -50,9 +50,13 @@ type Install struct {
 	Candidates []Candidate `json:"candidates,omitempty"`
 }
 
-// Exe, Kfc and Resources are the three files a build reads.
-func (in *Install) Exe() string       { return filepath.Join(in.Dir, ExeName) }
-func (in *Install) Kfc() string       { return filepath.Join(in.Dir, KfcName) }
+// Exe is the game executable, one of the three files a build reads.
+func (in *Install) Exe() string { return filepath.Join(in.Dir, ExeName) }
+
+// Kfc is the installed archive index.
+func (in *Install) Kfc() string { return filepath.Join(in.Dir, KfcName) }
+
+// Resources is the installed resource file.
 func (in *Install) Resources() string { return filepath.Join(in.Dir, ResourcesName) }
 
 // DatFile is one enshrouded_NNN.dat container.
