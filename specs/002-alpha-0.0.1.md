@@ -22,9 +22,10 @@ installers come from fynstall, and the module is
 ### Facts this spec relies on (verified 2026-10-18, build 1269579 / 1.0)
 
 - Steam app ids: client `1203620`, dedicated server `2278520`.
-- `enshrouded.exe` and `enshrouded.kfc` both embed the build string
-  `1269579|^/game38/branches/release_1.0|<timestamp>`. That string is the
-  fingerprint.
+- `enshrouded.kfc` embeds the build string
+  `1269579|^/game38/branches/release_1.0|<timestamp>`. The exe does **not**
+  (corrected during build-out); it carries a 40-hex source commit followed by
+  an engine version (`0.0.15.0`). The fingerprint is built from both (R2).
 - `emm` builds on Linux from kfc-parser `v0.2.0` (tag only, no published
   release). `emm run -g <dir> --patch` applies EML mods offline with no DLL
   proxy and no Proton setup. It writes `enshrouded.kfc` and appends to
@@ -105,14 +106,15 @@ out of scope.
 ### R2 — Fingerprint and compatibility table (`internal/compat`)
 
 1. **Fingerprint.** It is the tuple:
-   - the build string read from the exe (scan `.rdata` for the
-     `NNNNNNN|^/game38/` pattern)
    - the build string read from the `.kfc` header
-   - the Steam build id
+   - the source commit and engine version read from the exe
    - the exe's SHA-256
+   - the Steam build id (informational)
 
-   If the exe and `.kfc` build strings disagree, the install is
-   **inconsistent**. Refuse, and advise verifying the game files.
+   Its id is `<revision>-<exe sha256[:12]>`. If the ledger knows the `.kfc`
+   build string but with a different exe hash, the install is
+   **inconsistent** (half updated). Refuse, and advise verifying the game
+   files.
    `emm` writes `.cache/types.json` with the same version string and an
    `is_dirty` flag. Read both as a cross-check, but our own read stays
    authoritative.
@@ -159,7 +161,7 @@ out of scope.
 
 1. **Pristine copy.** On first sight of a fingerprint, copy `enshrouded.kfc`
    and `enshrouded.kfc_resources` into
-   `$XDG_DATA_HOME/enshroudedbonker/pristine/<fingerprint>/`, checking first
+   `$XDG_DATA_HOME/enshroudedbonker/workspace/pristine/<fingerprint id>/`, checking first
    that they are unmodified. A `.kfc` with an EML backup beside it, or whose
    resource file is larger than the recorded size, is not pristine. The game
    dir is never the source of truth again.
@@ -306,8 +308,8 @@ CLI/GUI parity enforced by a parity test, as in nmsbonker.
 
 ### R8 — Saves
 
-1. Before the first deploy for a fingerprint, back up the save folder by copy
-   only. Its location under Proton (`compatdata/1203620/pfx/…` or Steam
+1. *(Deferred past 0.0.1: not implemented.)* Before the first deploy for a
+   fingerprint, back up the save folder by copy only. Its location under Proton (`compatdata/1203620/pfx/…` or Steam
    `userdata/…/1203620/`) is open question Q2.
 2. Stack-size and slot changes persist in a save after a rollback: items
    above vanilla limits stay. The tweak's README says so, and the Deploy
@@ -365,8 +367,8 @@ when `emm`'s logs make that visible.
 
 - [ ] AC1. `detect` finds the Linux install and reports the fingerprint;
   `status --json` carries it.
-- [ ] AC2. `tools check` installs `emm` from our release asset (hash checked)
-  and the schema probe passes on 1.0. A synthetic missing-field fixture
+- [ ] AC2. `tools build-emm` builds `emm` from the pinned tag, and
+  `compat check` passes on 1.0. A synthetic missing-field fixture
   disables just that tweak.
 - [ ] AC3. A build with the six required tweaks succeeds in the shadow dir. The game dir is byte-identical before and
   after the build (hashes recorded in the report).
@@ -395,8 +397,8 @@ when `emm`'s logs make that visible.
   reported as an overlap before `emm` runs.
 - [ ] AC9. CLI/GUI parity test passes. `make test` passes headless with no
   game. `make lint` and `govulncheck ./...` are clean.
-- [ ] AC10. The Linux fynstall installer installs, launches the window and
-  uninstalls cleanly. The CLI-only installer works over SSH.
+- [ ] AC10. `install.sh` installs, the window launches, and `uninstall.sh`
+  removes it cleanly. The CLI-only installer works over SSH.
 - [ ] AC11. The three version strings agree. The README is player-facing
   and states Linux-only and alpha.
 
@@ -440,8 +442,9 @@ when `emm`'s logs make that visible.
 - **Q3.** Does `emm` need the `.dat` files for resource-only mods? (Spec 001
   ran without them.) The shadow dir symlinks them anyway, so this only
   affects the tests.
-- **Q4.** Should our release attach upstream's `emm`, or should a user's
-  first run build it? R3.2 assumes we attach it; confirm before CI work.
+- **Q4.** ~~Attach upstream's `emm` or build it?~~ Answered: build it from
+  the pinned tag (`tools build-emm`, needs git and cargo), or point
+  `emm_path` at a binary. Nothing GPL is redistributed in 0.0.1.
 - **Q5.** EML mods must target their data precisely. A generic walk over
   every template's value tree ran `emm` out of Lua reference slots and
   aborted it (seen during recon). Built-in tweaks should use targeted
