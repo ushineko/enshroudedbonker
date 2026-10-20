@@ -5,3 +5,20 @@ reflection_data.json
 *.kfc_resources
 *.kfc.bak
 __pycache__/
+
+# Build artifacts
+/enshroudedbonker
+/enshroudedbonker-gui
+/dist/
+*.exe
+coverage.out
+
+# Game-derived data never enters the repository.
+*.dat
+probes.json
+
+# Third-party EML mods stay in the user's library directory. Only this
+# project's own Lua is committed.
+*.lua
+!/internal/tweaks/mods/*/src/*.lua
+!/recon/eml/*/src/*.lua
