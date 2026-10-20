@@ -1,0 +1,13 @@
+{
+  "id": "more_resources",
+  "name": "More resources",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "More from everything you gather: each pickup a tree, rock or node drops, each plant or bush you harvest, and each voxel of terrain you dig. Also lets the world's \"Resource drop amount\" setting go up to 10x.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "cheaper_upgrades",
+  "name": "Cheaper upgrades",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "Cuts the rune cost of upgrading weapons, armor and rings at the vendors, and lets the world's upgrade-cost setting go below 0.25x. The two multiply.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}

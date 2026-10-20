@@ -1,0 +1,13 @@
+{
+  "id": "chest_slots",
+  "name": "More chest slots",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "Multiplies the slots of every chest you build, plain and magic. Chests already placed keep their size until you rebuild them, and bigger chests stay bigger in the save after the mod is removed.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}
