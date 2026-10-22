@@ -1,6 +1,6 @@
 # Spec 003 — Run upstream's released `emm.exe` under Wine
 
-**Status**: DRAFT
+**Status**: COMPLETE
 **Issue**: #3
 
 ## Context
@@ -149,8 +149,10 @@ assume Linux beyond R2 and R3.
   Verified 2026-10-21 on game build 1273043: 2301 entries, type, size and
   mtime identical across a full build (3014 patches) under Proton
   Experimental's Wine.
-- [ ] AC8. A deploy of the Wine-built output loads in game, and big stacks show
-  (spec 002 AC5's first check).
+- [x] AC8. A deploy of the Wine-built output loads in game, and big stacks show
+  (spec 002 AC5's first check). Checked by the maintainer on 2026-10-22, game
+  build 1273043, with the ten built-ins built under Proton Experimental's Wine
+  (3014 patches), as part of the AC11 run.
 - [x] AC9. The parity test passes with `tools get-emm`, and no `build-emm`
   operation remains in core, the CLI or the GUI. `make test` passes
   headless with no Wine and no network (Wine and download tests skip when
@@ -158,11 +160,22 @@ assume Linux beyond R2 and R3.
 - [x] AC10. The README's first run names no Rust or git requirement; spec 002
   R3.2, R3.3, Q4 and Risks are corrected. `scripts/build-emm.sh` builds a binary
   that works through `emm_path`.
-- [ ] AC11. Fresh setup, end to end, as a new player: with empty config, data
-  and cache directories and a vanilla install, `install.sh`, then the GUI alone
+- [x] AC11. Fresh setup, end to end, as a new player: with empty config, data
+  and cache directories and a vanilla install, the installer (spec 004; it
+  replaced `install.sh` as a player's way in), then the GUI alone
   (no CLI, no hand-edited files) gets emm, captures the vanilla copy, enables
   the tweaks, builds and deploys, and the game shows big stacks. Every prompt,
   dialog and wait a new player meets is noted in the PR.
+  Run by the maintainer on 2026-10-22. The game was rolled back to vanilla, the
+  config, data and window-preference directories were moved aside (there was no
+  cache directory), and the wizard installer from `make installer` installed the
+  program. From the window alone: Get emm, capture the vanilla copy, the
+  compatibility check, Build, Deploy, and the game showed the tweaks. Nothing
+  was written outside the installer's files, the config and the data
+  directory. There was no `tools/src`: a new player never gets the old source
+  tree. One stumble: the Game card asks for the compatibility check while its
+  button is disabled with no reason given, because the vanilla copy, two
+  cards further down, does not exist yet (filed on #6).
 
 ## Risks & Assumptions
 
@@ -240,6 +253,10 @@ problems through GitHub issues.
 
 ## Executive Summary
 
-<!-- Populate just before opening the PR. -->
+The program downloads upstream's released `emm.exe` for the pinned kfc-parser
+tag, checks its SHA-256, and runs it under the Proton Steam uses for the game in
+a Wine prefix of its own. The source build is gone from the program. A new
+player's setup, from the installer to big stacks in game, needs no toolchain
+and no terminal.
 
-## Status: INCOMPLETE
+## Status: COMPLETE
