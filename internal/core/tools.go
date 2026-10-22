@@ -51,6 +51,8 @@ type PristineImportRequest struct {
 // PristineResult describes what is held.
 type PristineResult struct {
 	Pristine *build.Pristine `json:"pristine"`
+	// Leftover names the empty containers a Steam update left in the install.
+	Leftover []string `json:"leftover,omitempty"`
 }
 
 // PristineCapture copies the installed archive pair, if it looks vanilla.
@@ -73,11 +75,11 @@ func PristineCapture(_ context.Context, req PristineCaptureRequest) (PristineRes
 	if d, err := build.LoadDeployed(s.paths.Deployed); err == nil && d != nil {
 		deployedKfc = d.KfcSHA256()
 	}
-	p, err := build.CapturePristine(s.paths.Pristine, s.install, fp, deployedKfc)
+	p, leftover, err := build.CapturePristine(s.paths.Pristine, s.install, fp, deployedKfc)
 	if err != nil {
 		return PristineResult{}, err
 	}
-	return PristineResult{Pristine: p}, nil
+	return PristineResult{Pristine: p, Leftover: leftover}, nil
 }
 
 // PristineImport takes the vanilla pair from a backup directory.
