@@ -22,6 +22,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ushineko/enshroudedbonker/internal/compat"
@@ -78,37 +80,93 @@ func LoadPristine(root string, fp compat.Fingerprint) (*Pristine, error) {
 
 /*
 PatchedSigns lists the reasons an install looks patched, empty when it looks
-vanilla.
+vanilla, and separately the empty containers a Steam update left behind.
 
 emm registers nine empty content containers past the game's own, so a
 zero-byte enshrouded_NNN.dat is the fingerprint of a patched archive, and an
 enshrouded.kfc.bak is what emm leaves when it patches in place. Neither is
 conclusive proof of the opposite, which is why a clean result is "looks
 vanilla", and why the Steam route (verify integrity) is offered alongside.
+
+A Steam update replaces the archive pair but leaves the containers, which
+Steam does not own, so they outlive the patch that made them. A container
+counts as left over, not as a sign, only when the manifest shows Steam
+rewrote both halves of the pair after it was made (see steamReplacedPair).
+Anything that cannot be shown that way stays a sign.
 */
-func PatchedSigns(in *steam.Install) ([]string, error) {
-	var signs []string
+func PatchedSigns(in *steam.Install) (signs, leftover []string, err error) {
 	dats, err := in.DatFiles()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	replaced := steamReplacedPair(in)
+	var empty []string
 	for _, d := range dats {
-		if d.Size == 0 {
-			signs = append(signs, "empty container "+d.Name+" (emm adds these when it patches)")
+		if d.Size != 0 {
+			continue
 		}
+		if !replaced.IsZero() && madeBefore(filepath.Join(in.Dir, d.Name), replaced.Add(-updateSlack)) {
+			leftover = append(leftover, d.Name)
+		} else {
+			empty = append(empty, d.Name)
+		}
+	}
+	if len(empty) > 0 {
+		signs = append(signs, DescribeContainers(empty)+" (emm adds these when it patches)")
 	}
 	if _, err := os.Stat(in.Kfc() + ".bak"); err == nil {
 		signs = append(signs, steam.KfcName+".bak exists (emm's in-place backup)")
 	}
-	return signs, nil
+	return signs, leftover, nil
+}
+
+// updateSlack is how long before the manifest's LastUpdated Steam may have
+// written the files of that update. Steam stamps the time at the end.
+const updateSlack = 2 * time.Minute
+
+// steamReplacedPair is the manifest's LastUpdated when both halves of the
+// archive pair were written at or after it, which is Steam having replaced
+// them in that update. It is zero when that cannot be shown: no manifest
+// (--game-dir), or an update that left a patched pair in place.
+func steamReplacedPair(in *steam.Install) time.Time {
+	secs, err := strconv.ParseInt(in.LastUpdated, 10, 64)
+	if err != nil || secs <= 0 {
+		return time.Time{}
+	}
+	updated := time.Unix(secs, 0)
+	for _, p := range []string{in.Kfc(), in.Resources()} {
+		fi, err := os.Stat(p)
+		if err != nil || fi.ModTime().Before(updated.Add(-updateSlack)) {
+			return time.Time{}
+		}
+	}
+	return updated
+}
+
+func madeBefore(path string, t time.Time) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.ModTime().Before(t)
+}
+
+// DescribeContainers names a set of containers in one phrase, so nine of
+// them read as one finding rather than nine.
+func DescribeContainers(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return "empty container " + names[0]
+	}
+	return fmt.Sprintf("%d empty containers, %s to %s", len(names), names[0], names[len(names)-1])
 }
 
 // CapturePristine copies the install's archive pair as the pristine copy for
-// its fingerprint, refusing an install that looks patched.
-func CapturePristine(root string, in *steam.Install, fp compat.Fingerprint, deployedKfc string) (*Pristine, error) {
-	signs, err := PatchedSigns(in)
+// its fingerprint, refusing an install that looks patched. It also returns the
+// containers a Steam update left behind, which do not stop a capture.
+func CapturePristine(root string, in *steam.Install, fp compat.Fingerprint, deployedKfc string) (*Pristine, []string, error) {
+	signs, leftover, err := PatchedSigns(in)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if deployedKfc != "" {
 		if h, err := gamefiles.HashFile(in.Kfc()); err == nil && h == deployedKfc {
@@ -116,10 +174,12 @@ func CapturePristine(root string, in *steam.Install, fp compat.Fingerprint, depl
 		}
 	}
 	if len(signs) > 0 {
-		return nil, fmt.Errorf("%w: %v. Restore it first (Steam: Verify integrity of game files), "+
-			"or import a vanilla backup with `pristine import`", ErrLooksPatched, signs)
+		return nil, nil, fmt.Errorf("%w: %s. Restore the vanilla pair (Steam: Verify integrity of game files) "+
+			"and import it with `pristine import <game dir>`, or import a vanilla backup", ErrLooksPatched,
+			strings.Join(signs, "; "))
 	}
-	return storePristine(root, in, fp, in.Kfc(), in.Resources(), "captured from the install")
+	p, err := storePristine(root, in, fp, in.Kfc(), in.Resources(), "captured from the install")
+	return p, leftover, err
 }
 
 // ImportPristine takes the pristine pair from a backup directory holding
