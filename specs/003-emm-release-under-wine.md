@@ -1,8 +1,7 @@
 # Spec 003 — Run upstream's released `emm.exe` under Wine
 
 **Status**: DRAFT
-**Issue**: — (this spec predates the repository's GitHub remote; open an issue and
-link it here once the remote is configured)
+**Issue**: #3
 
 ## Context
 
@@ -145,8 +144,11 @@ assume Linux beyond R2 and R3.
   native emm build. This uses the real `emm.exe` and Wine, not a mock.
 - [x] AC6. Cancelling a Wine build leaves no `wineserver` or `emm.exe` process
   for the tools prefix.
-- [ ] AC7. The game's Proton prefix is byte-identical before and after a Wine
+- [x] AC7. The game's Proton prefix is byte-identical before and after a Wine
   build (file list and modification times of `compatdata/1203620`).
+  Verified 2026-10-21 on game build 1273043: 2301 entries, type, size and
+  mtime identical across a full build (3014 patches) under Proton
+  Experimental's Wine.
 - [ ] AC8. A deploy of the Wine-built output loads in game, and big stacks show
   (spec 002 AC5's first check).
 - [x] AC9. The parity test passes with `tools get-emm`, and no `build-emm`
