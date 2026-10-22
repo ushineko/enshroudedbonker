@@ -76,6 +76,9 @@ func printStatus(w io.Writer, r core.StatusResult) {
 	default:
 		fact(w, "pristine copy", "none yet; run `enshroudedbonker pristine capture`")
 	}
+	if len(r.Pristine.Leftover) > 0 {
+		fact(w, "left over", core.LeftoverNote(r.Pristine.Leftover))
+	}
 	fact(w, "install state", r.State)
 	if r.Deployed != nil {
 		fact(w, "deployed", fmt.Sprintf("%s: %s", r.Deployed.When.Format("2006-01-02 15:04"),
@@ -196,6 +199,9 @@ func newPristineCmd() *cobra.Command {
 				return err
 			}
 			fact(cmd.OutOrStdout(), "pristine copy", res.Pristine.Dir)
+			if len(res.Leftover) > 0 {
+				fact(cmd.OutOrStdout(), "left over", core.LeftoverNote(res.Leftover))
+			}
 			return nil
 		},
 	}, &cobra.Command{

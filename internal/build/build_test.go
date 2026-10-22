@@ -3,11 +3,14 @@ package build
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -112,23 +115,102 @@ func notRunning() (bool, bool) { return false, true }
 
 func TestPatchedSigns(t *testing.T) {
 	f := newFixture(t)
-	signs, err := PatchedSigns(f.install)
+	signs, leftover, err := PatchedSigns(f.install)
 	require.NoError(t, err)
 	assert.Empty(t, signs)
+	assert.Empty(t, leftover)
 
 	require.NoError(t, os.WriteFile(filepath.Join(f.install.Dir, "enshrouded_055.dat"), nil, 0o644)) //nolint:gosec // fixture
 	require.NoError(t, os.WriteFile(f.install.Kfc()+".bak", []byte("x"), 0o644))                     //nolint:gosec // fixture
-	signs, err = PatchedSigns(f.install)
+	signs, _, err = PatchedSigns(f.install)
 	require.NoError(t, err)
 	require.Len(t, signs, 2)
 	assert.Contains(t, signs[0], "enshrouded_055.dat")
 	assert.Contains(t, signs[1], ".bak")
 }
 
+// emmContainers writes emm's nine empty containers, stamped with when.
+func emmContainers(t *testing.T, dir string, when time.Time) {
+	t.Helper()
+	for i := 55; i <= 63; i++ {
+		p := filepath.Join(dir, fmt.Sprintf("enshrouded_%03d.dat", i))
+		require.NoError(t, os.WriteFile(p, nil, 0o644)) //nolint:gosec // fixture
+		require.NoError(t, os.Chtimes(p, when, when))
+	}
+}
+
+// stamp sets a file's modification time.
+func stamp(t *testing.T, p string, when time.Time) {
+	t.Helper()
+	require.NoError(t, os.Chtimes(p, when, when))
+}
+
+func TestPatchedSigns_ContainersASteamUpdateLeftAreNotSigns(t *testing.T) {
+	f := newFixture(t)
+	update := time.Now().Add(-time.Hour).Truncate(time.Second)
+	emmContainers(t, f.install.Dir, update.Add(-72*time.Hour))
+	stamp(t, f.install.Kfc(), update)
+	stamp(t, f.install.Resources(), update)
+	f.install.LastUpdated = strconv.FormatInt(update.Unix(), 10)
+
+	signs, leftover, err := PatchedSigns(f.install)
+	require.NoError(t, err)
+	assert.Empty(t, signs, "the archive pair Steam just wrote is vanilla")
+	assert.Len(t, leftover, 9)
+	assert.Equal(t, "9 empty containers, enshrouded_055.dat to enshrouded_063.dat", DescribeContainers(leftover))
+
+	p, left, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+	require.NoError(t, err)
+	assert.Len(t, left, 9)
+	for _, d := range p.Dats {
+		assert.NotZero(t, d.Size, "leftover containers are not the game's own")
+	}
+}
+
+func TestPatchedSigns_ContainersStillCountWhenSteamDidNotReplaceThePair(t *testing.T) {
+	update := time.Now().Add(-time.Hour).Truncate(time.Second)
+	for name, setup := range map[string]func(f *fixture){
+		"patched after the update": func(f *fixture) {
+			stamp(t, f.install.Kfc(), update.Add(10*time.Minute))
+			stamp(t, f.install.Resources(), update.Add(10*time.Minute))
+			emmContainers(t, f.install.Dir, update.Add(10*time.Minute))
+		},
+		"update left the patched kfc in place": func(f *fixture) {
+			emmContainers(t, f.install.Dir, update.Add(-72*time.Hour))
+			stamp(t, f.install.Kfc(), update.Add(-72*time.Hour))
+			stamp(t, f.install.Resources(), update)
+		},
+		"update left the patched resources in place": func(f *fixture) {
+			emmContainers(t, f.install.Dir, update.Add(-72*time.Hour))
+			stamp(t, f.install.Kfc(), update)
+			stamp(t, f.install.Resources(), update.Add(-72*time.Hour))
+		},
+		"no manifest": func(f *fixture) {
+			emmContainers(t, f.install.Dir, update.Add(-72*time.Hour))
+			stamp(t, f.install.Kfc(), update)
+			stamp(t, f.install.Resources(), update)
+			f.install.LastUpdated = ""
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			f.install.LastUpdated = strconv.FormatInt(update.Unix(), 10)
+			setup(f)
+			signs, leftover, err := PatchedSigns(f.install)
+			require.NoError(t, err)
+			assert.Empty(t, leftover)
+			require.Len(t, signs, 1)
+			assert.Contains(t, signs[0], "9 empty containers")
+			_, _, err = CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+			require.ErrorIs(t, err, ErrLooksPatched)
+		})
+	}
+}
+
 func TestCapturePristine_RefusesPatchedLookingInstall(t *testing.T) {
 	f := newFixture(t)
 	require.NoError(t, os.WriteFile(filepath.Join(f.install.Dir, "enshrouded_060.dat"), nil, 0o644)) //nolint:gosec // fixture
-	_, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+	_, _, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.ErrorIs(t, err, ErrLooksPatched)
 	_, err = LoadPristine(filepath.Join(f.ws, "pristine"), f.fp)
 	require.ErrorIs(t, err, ErrNoPristine, "a refused capture must leave nothing behind")
@@ -138,14 +220,14 @@ func TestCapturePristine_RefusesOurOwnDeployedArchive(t *testing.T) {
 	f := newFixture(t)
 	h, err := gamefiles.HashFile(f.install.Kfc())
 	require.NoError(t, err)
-	_, err = CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, h)
+	_, _, err = CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, h)
 	require.ErrorIs(t, err, ErrLooksPatched)
 }
 
 func TestCapturePristine_RecordsHashesSizesAndRealContainers(t *testing.T) {
 	f := newFixture(t)
 	root := filepath.Join(f.ws, "pristine")
-	p, err := CapturePristine(root, f.install, f.fp, "")
+	p, _, err := CapturePristine(root, f.install, f.fp, "")
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(synthRes)), p.ResSize)
 	want, _ := gamefiles.HashFile(f.install.Resources())
@@ -184,7 +266,7 @@ func TestState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, StateUnknown, s)
 
-	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+	p, _, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	s, _ = State(f.install, p, nil)
 	assert.Equal(t, StateVanilla, s)
@@ -201,7 +283,7 @@ func TestState(t *testing.T) {
 func built(t *testing.T, f *fixture, mods []ModSpec) (*Pristine, *Manifest) {
 	t.Helper()
 	f.emm = emm.Runner{Path: installFakeEmm(t, filepath.Join(f.root, "bin"))}
-	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+	p, _, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	man, _, err := Run(context.Background(), Options{Install: f.install, Pristine: p, Emm: f.emm, Mods: mods,
 		Shadow: filepath.Join(f.ws, "shadow"), Out: filepath.Join(f.ws, "builds", "latest")})
@@ -246,7 +328,7 @@ func TestRun_CollectsWhatEmmWroteAndLeavesGameAlone(t *testing.T) {
 func TestRun_RefusesOutputThatRewroteThePristinePrefix(t *testing.T) {
 	f := newFixture(t)
 	f.emm = emm.Runner{Path: installFakeEmm(t, filepath.Join(f.root, "bin"))}
-	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+	p, _, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	t.Setenv("FAKE_EMM_MODE", "rewrite")
 	out := filepath.Join(f.ws, "builds", "latest")
@@ -277,7 +359,7 @@ func TestRun_FailedRebuildKeepsPreviousBuild(t *testing.T) {
 func TestRun_DryRunPublishesNothing(t *testing.T) {
 	f := newFixture(t)
 	f.emm = emm.Runner{Path: installFakeEmm(t, filepath.Join(f.root, "bin"))}
-	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+	p, _, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	man, res, err := Run(context.Background(), Options{Install: f.install, Pristine: p, Emm: f.emm,
 		Mods: []ModSpec{{Name: "big_stacks", Builtin: true}}, Shadow: filepath.Join(f.ws, "shadow")})
@@ -385,7 +467,7 @@ func TestDeploy_RedeployRemovesContainersThePreviousDeployAdded(t *testing.T) {
 
 func TestRollback_RemovesStrayEmptyContainersWithoutRecord(t *testing.T) {
 	f := newFixture(t)
-	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
+	p, _, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	stray := filepath.Join(f.install.Dir, "enshrouded_070.dat")
 	require.NoError(t, os.WriteFile(stray, nil, 0o600))

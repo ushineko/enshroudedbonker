@@ -3,12 +3,14 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -367,4 +369,48 @@ func TestMods_ImportEnableRemove(t *testing.T) {
 		assert.NotEqual(t, "synth", m.Name)
 		assert.True(t, m.Builtin)
 	}
+}
+
+func TestPristineCapture_AcceptsContainersASteamUpdateLeftBehind(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+
+	// The game moves into a Steam library, whose manifest says when Steam
+	// last updated it.
+	lib := filepath.Join(e.root, "lib")
+	game := filepath.Join(lib, "steamapps", "common", "Enshrouded")
+	require.NoError(t, os.MkdirAll(filepath.Dir(game), 0o750))
+	require.NoError(t, os.Rename(e.game, game))
+	e.req.GameDir = game
+	update := time.Now().Add(-time.Hour).Truncate(time.Second)
+	acf := fmt.Sprintf("\"AppState\"\n{\n\"appid\" %q\n\"installdir\" \"Enshrouded\"\n\"LastUpdated\" \"%d\"\n\"buildid\" \"1\"\n}\n",
+		steam.AppID, update.Unix())
+	require.NoError(t, os.WriteFile(filepath.Join(lib, "steamapps", "appmanifest_"+steam.AppID+".acf"), []byte(acf), 0o600))
+
+	// emm's containers from a patch three days earlier; Steam has since
+	// replaced the archive pair.
+	before := update.Add(-72 * time.Hour)
+	for i := 55; i <= 63; i++ {
+		p := filepath.Join(game, fmt.Sprintf("enshrouded_%03d.dat", i))
+		require.NoError(t, os.WriteFile(p, nil, 0o644)) //nolint:gosec // fixture
+		require.NoError(t, os.Chtimes(p, before, before))
+	}
+	for _, name := range []string{steam.KfcName, steam.ResourcesName} {
+		require.NoError(t, os.Chtimes(filepath.Join(game, name), update, update))
+	}
+
+	st, err := core.Status(ctx, core.StatusRequest{Request: e.req})
+	require.NoError(t, err)
+	assert.Empty(t, st.Pristine.Patched)
+	assert.Len(t, st.Pristine.Leftover, 9)
+
+	pr, err := core.PristineCapture(ctx, core.PristineCaptureRequest{Request: e.req})
+	require.NoError(t, err)
+	assert.Len(t, pr.Leftover, 9)
+	assert.Contains(t, core.LeftoverNote(pr.Leftover), "9 empty containers")
+
+	st, err = core.Status(ctx, core.StatusRequest{Request: e.req})
+	require.NoError(t, err)
+	assert.True(t, st.Pristine.Present)
+	assert.Equal(t, build.StateVanilla, st.State)
 }

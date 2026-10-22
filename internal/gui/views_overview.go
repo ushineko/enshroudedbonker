@@ -154,11 +154,15 @@ func (u *ui) pristineCard() fyne.CanvasObject {
 	if len(p.Patched) > 0 {
 		capture.Disable()
 		rows = append(rows, widgets.Note("The install looks patched ("+strings.Join(p.Patched, "; ")+"), so it "+
-			"cannot be captured as vanilla. Restore it with Steam's Verify integrity of game files, "+
-			"or import a backup of the vanilla enshrouded.kfc and enshrouded.kfc_resources.", fd.StatusWarn))
+			"cannot be captured as vanilla. Restore the vanilla archive with Steam's Verify integrity of "+
+			"game files and import the game folder, or import a backup of the vanilla enshrouded.kfc and "+
+			"enshrouded.kfc_resources.", fd.StatusWarn))
 	} else {
 		rows = append(rows, widgets.DimWrapped("A copy of enshrouded.kfc and enshrouded.kfc_resources "+
 			"(about 225 MB) is kept in the workspace. The game is not touched."))
+	}
+	if len(p.Leftover) > 0 {
+		rows = append(rows, widgets.DimWrapped("Left over: "+core.LeftoverNote(p.Leftover)+"."))
 	}
 	rows = append(rows, container.NewHBox(capture, importBtn))
 	return widgets.Card("Vanilla copy", rows...)

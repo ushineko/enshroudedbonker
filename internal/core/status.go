@@ -49,6 +49,16 @@ type PristineInfo struct {
 	Captured string `json:"captured,omitempty"`
 	// Patched lists why the install cannot be captured from right now.
 	Patched []string `json:"patched,omitempty"`
+	// Leftover names the empty containers a Steam update left behind. They do
+	// not stop a capture; a deploy writes over them and a rollback removes them.
+	Leftover []string `json:"leftover,omitempty"`
+}
+
+// LeftoverNote explains the empty containers a Steam update left behind, in
+// the words both front ends show.
+func LeftoverNote(names []string) string {
+	return build.DescribeContainers(names) + " from a patch made before the last Steam update; " +
+		"harmless: a deploy writes over them and a rollback removes them"
 }
 
 // BuildInfo summarises the last build.
@@ -127,7 +137,7 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 	case perr == nil:
 		res.Pristine = PristineInfo{Present: true, Source: p.Source, Captured: p.Captured.Format("2006-01-02 15:04")}
 	case errors.Is(perr, build.ErrNoPristine):
-		res.Pristine.Patched, _ = build.PatchedSigns(in)
+		res.Pristine.Patched, res.Pristine.Leftover, _ = build.PatchedSigns(in)
 	default:
 		return res, perr
 	}
