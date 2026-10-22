@@ -37,12 +37,43 @@ that is half updated is refused.
 
 ## Install
 
+Download the installer from the
+[Releases](https://github.com/ushineko/enshroudedbonker/releases) page and run it.
+It needs no toolchain and no administrator: it installs the CLI and the window
+for you alone, under `~/.local/share/io.ushineko.enshroudedbonker`, links both
+into `~/.local/bin`, and adds a launcher entry with its icon.
+
+```sh
+chmod +x enshroudedbonker-*-linux-amd64-installer
+./enshroudedbonker-*-linux-amd64-installer    # the wizard from the desktop, questions in a terminal
+```
+
+`--yes` accepts the defaults and `--dry-run` lists every change and makes none.
+On a machine without the graphics libraries, such as a server, the wizard
+installer does not start; use the `-cli-installer` beside it.
+
+**Upgrade** by running a newer installer. **Remove** with
+`~/.local/share/io.ushineko.enshroudedbonker/uninstall`, or the launcher
+entry's Uninstall action. Neither touches your settings
+(`~/.config/enshroudedbonker`) or your data (`~/.local/share/enshroudedbonker`:
+the mod library, emm, the deploy archive and the vanilla copies a rollback
+needs).
+
+### From source
+
 ```sh
 ./install.sh            # CLI, window, launcher entry and icon into ~/.local
 ./install.sh --no-gui   # CLI only (no CGO needed)
 ```
 
-Then get emm, upstream's mod manager, which does the patching:
+Use one or the other. If you switch, remove the old one first
+(`./uninstall.sh`, or the installer's `uninstall`): the two write the same
+names in `~/.local/bin`, and removing one while the other is on top of it
+removes the other's files too.
+
+## Set up emm
+
+Get emm, upstream's mod manager, which does the patching:
 
 ```sh
 enshroudedbonker tools get-emm
@@ -105,6 +136,7 @@ make test        # go test -race -tags parity ./...
 make build       # CLI, CGO_ENABLED=0
 make build-gui   # window, needs CGO and OpenGL/X11/Wayland headers
 make lint
+make installer   # the installers for this machine into dist/, built by the pinned fynstall
 ```
 
 The recon behind the design is in [specs/001-feasibility-recon.md](specs/001-feasibility-recon.md)
@@ -123,5 +155,6 @@ MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 - emm: upstream's kfc-parser v0.2.0 release, downloaded, checked against its
   SHA-256 and run under the game's Proton.
 - Compatibility gate: ledger, dry run and per-tweak disable.
+- An installer that needs no toolchain, built with fynstall.
 - Vanilla copy, shadow builds, atomic deploy and rollback.
 - Third-party EML mod import (directory or zip).

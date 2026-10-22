@@ -34,6 +34,16 @@ LDFLAGS=-w -s -X $(MODULE)/internal/buildinfo.Version=$(VERSION) -X $(MODULE)/in
 FYNE_TAGS?=migrated_fynedo
 
 
+# The installer is built by fynstall (github.com/ushineko/fynstall) from
+# fynstall.yaml, and an installer is pinned to the fynstall that built it. The
+# pin lives here, as the linter's does: fynstall is a build tool, not a
+# dependency of either binary, so go.mod does not name it.
+FYNSTALL_VERSION?=v0.2.5
+FYNSTALL?=$(BINDIR)/bin/fynstall-$(FYNSTALL_VERSION)
+# The wizard's installer, and the command-line one beside it for a machine
+# without the graphics libraries the wizard needs to start.
+FYNSTALL_FLAGS?=--with-cli-only
+
 LINT_NAME?=golangci-lint
 LINT_VERSION?=v2.12.2
 LINT_PROGRAM=$(LINT_NAME)-$(LINT_VERSION)
@@ -141,6 +151,29 @@ release: build-all ## Package dist/ into per-target tar.gz archives with SHA256S
 	@set -e; 	rm -f dist/*.tar.gz dist/SHA256SUMS; 	stage=$$(mktemp -d); trap 'rm -rf "$$stage"' EXIT; 	for bin in dist/enshroudedbonker-*; do 		case "$$bin" in *.tar.gz|*SHA256SUMS) continue;; esac; 		name=$$(basename "$$bin"); 		target=$${name#enshroudedbonker-}; target=$${target#gui-}; 		dir="$$stage/enshroudedbonker-$(VERSION)-$$target"; 		mkdir -p "$$dir"; 		case "$$name" in 			enshroudedbonker-gui-*) cp "$$bin" "$$dir/enshroudedbonker-gui";; 			*) cp "$$bin" "$$dir/enshroudedbonker";; 		esac; 		cp README.md LICENSE "$$dir/"; 		mkdir -p "$$dir/packaging"; 		cp packaging/io.ushineko.enshroudedbonker.desktop packaging/enshroudedbonker.svg "$$dir/packaging/"; 	done; 	for dir in "$$stage"/*; do 		base=$$(basename "$$dir"); 		tar -C "$$stage" -czf "dist/$$base.tar.gz" "$$base"; 	done; 	cd dist && (sha256sum *.tar.gz 2>/dev/null || shasum -a 256 *.tar.gz) > SHA256SUMS
 	@ls -l dist/*.tar.gz dist/SHA256SUMS
 
+
+.PHONY: install-fynstall
+install-fynstall: $(FYNSTALL) ## Install the pinned installer builder
+
+$(FYNSTALL):
+	@echo "Setting up fynstall $(FYNSTALL_VERSION) ..."
+	@set -e; \
+	tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+	GOBIN="$$tmp" GOFLAGS= go install github.com/ushineko/fynstall/cmd/fynstall@$(FYNSTALL_VERSION); \
+	mkdir -p "$(BINDIR)/bin"; \
+	mv -v "$$tmp/fynstall" "$(FYNSTALL)"
+
+.PHONY: installer
+installer: build build-gui install-fynstall ## Build the installers for this platform into dist/
+	@mkdir -p dist
+	$(FYNSTALL) validate
+	$(FYNSTALL) build $(FYNSTALL_FLAGS)
+	@ls -l dist/
+
+# fynstall wants a square PNG of at least 512 px; the SVG is the source.
+.PHONY: icon
+icon: ## Render packaging/enshroudedbonker.png from the SVG (needs rsvg-convert)
+	rsvg-convert -w 512 -h 512 packaging/enshroudedbonker.svg -o packaging/enshroudedbonker.png
 
 .PHONY: clean
 clean: ## Remove build artifacts

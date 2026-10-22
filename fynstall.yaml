@@ -1,0 +1,65 @@
+# enshroudedbonker's installer, which fynstall (github.com/ushineko/fynstall)
+# builds from this file: one self-contained program that installs both binaries
+# and needs no toolchain (spec 004).
+#
+#   make installer        builds both binaries, then the installers, into dist/
+#
+# There is no `targets` key, so a build is for the machine that runs it: the
+# window needs cgo, and is built where it runs. Linux only for now; the program
+# does not run on Windows yet.
+app:
+  id: io.ushineko.enshroudedbonker
+  name: enshroudedbonker
+  # VERSION's. A test holds the two together (internal/buildinfo).
+  version: 0.0.1-alpha
+  publisher: ushineko
+  # Rendered from packaging/enshroudedbonker.svg (see the Makefile's icon target).
+  icon: packaging/enshroudedbonker.png
+
+install:
+  # Per-user: no administrator needed. The install and everything it writes
+  # stay under the user's own home.
+  scopes: [user]
+  dir:
+    user: "{programs}/{id}"
+
+payload:
+  # The window links the core itself; it does not drive the CLI. They are
+  # installed side by side because both are front ends a player may want.
+  - src: enshroudedbonker
+    dst: bin/enshroudedbonker
+  - src: enshroudedbonker-gui
+    dst: bin/enshroudedbonker-gui
+  - src: README.md
+    dst: share/doc/README.md
+  - src: LICENSE
+    dst: share/doc/LICENSE
+
+ui:
+  # The finish page offers to start the window.
+  launch: bin/enshroudedbonker-gui
+
+integration:
+  # Both by name from a terminal: `enshroudedbonker status`, `enshroudedbonker-gui`.
+  path_links:
+    - bin/enshroudedbonker
+    - bin/enshroudedbonker-gui
+  desktop:
+    # The entry's ID is the app ID, by default: the window sets it as its
+    # Wayland app_id (internal/gui appID), and a compositor finds the window's
+    # icon through the entry of that name. The rest matches
+    # packaging/io.ushineko.enshroudedbonker.desktop.
+    - name: enshroudedbonker
+      generic_name: Enshrouded mod builder
+      comment: Build and deploy Enshrouded mods, natively on Linux
+      exec: bin/enshroudedbonker-gui
+      categories: [Utility]
+      keywords: [Enshrouded, mod, EML, emm, kfc, Proton]
+      startup_notify: true
+  # The player's, and they outlive an uninstall and an upgrade. The data
+  # directory holds the mod library, emm.exe and its Wine prefix, the build
+  # workspace, the deploy archive and the vanilla copies a rollback restores:
+  # losing it can leave the game's archive with no way back.
+  keep_on_uninstall:
+    - "{config}/enshroudedbonker"
+    - "{data}/enshroudedbonker"
