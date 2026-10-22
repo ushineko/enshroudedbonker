@@ -124,8 +124,16 @@ This repository is **public**. The following hold without exception:
 - Go from `go.mod` (`go 1.26.0` minimum, which fynedesygn requires).
 - Fyne needs CGO, OpenGL and X11/Wayland headers; the CLI must build with
   `CGO_ENABLED=0`.
-- External tools at runtime: `emm`, built from the pinned kfc-parser tag with `cargo`
-  (`tools build-emm`), or pointed at with the `emm_path` setting. No Wine, no Python.
+- External tools at runtime: `emm`. The default is upstream's own released `emm.exe`
+  for the pinned kfc-parser tag, downloaded from the GitHub release and checked against
+  a recorded SHA-256, run under Wine on Linux. Upstream publishes Windows binaries only,
+  and asking players to install a Rust toolchain is too high a bar; Wine lets us run
+  upstream's exact build instead of compiling or redistributing our own. emm runs
+  under the Proton Steam uses for Enshrouded, falling back to the system's `wine`.
+  It gets its own Wine prefix under the tools directory, never the game's Proton
+  prefix. The program never builds emm from source; `scripts/build-emm.sh` does that
+  for developers, and the `emm_path` setting points at any emm binary. No Python.
+  (Spec 003.)
 
 ---
 

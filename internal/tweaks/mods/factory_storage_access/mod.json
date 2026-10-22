@@ -1,0 +1,13 @@
+{
+  "id": "factory_storage_access",
+  "name": "Craft from station storage",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "Lets crafting draw ingredients from the storage of production stations (smelter, kiln, loom...), the way it draws from magic chests.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "better_loot",
+  "name": "Better loot",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "Shifts random loot toward higher rarities and raises the odds of the less-than-certain drops in chests, plants and corpses. Gem-slot chances are a separate multiplier, off (1x) by default.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}

@@ -5,16 +5,32 @@ when picking the work back up.
 
 ## Summary
 
-- **No Go code yet.** The repo holds recon scripts, the ten EML tweak mods
-  under `recon/eml/`, spec 001 (feasibility and decision) and spec 002
-  (v0.0.1-alpha, DRAFT).
-- **Approach decided** (spec 001): upstream kfc-parser/EML `emm` patches the
-  game's archive offline as an external tool, the way nmsbonker uses
-  MBINCompiler. We don't reimplement the format or the Lua API, and we don't
-  diverge from upstream.
-- **Nothing is committed to git.** Every file is untracked. The terrariabonker
-  and nmsbonker rules apply when committing: no AI-attribution trailers, and
-  conventional commit subjects.
+- **0.0.1-alpha tool built** on branch `feat/alpha-core`: headless core,
+  cobra CLI (`enshroudedbonker`), fynedesygn window (`enshroudedbonker-gui`),
+  parity test, the ten tweaks as embedded EML mods with `@param` headers, emm
+  built from the pinned kfc-parser v0.2.0 tag, compatibility ledger with the
+  1.0 build verified, vanilla copy, shadow builds, atomic deploy and rollback.
+- **Verified so far** against copies of the 1.0 archive in a scratch install:
+  compat check (all ten tweaks apply), build of all ten (3014 patches), deploy,
+  rollback back to the vanilla hashes. Not yet run against the real install
+  or checked in game (spec 002 AC5).
+- **Approach** (spec 001): upstream kfc-parser/EML `emm` patches the archive
+  offline as an external program. We don't reimplement the format or the Lua
+  API, and we don't diverge from upstream.
+- **Not in 0.0.1:** save backup before deploy (R8.1 deferred), Windows,
+  GitHub repo and issue (to be created by the maintainer).
+
+## Moving the real install onto the tool
+
+The install is patched by hand (below), so `pristine capture` will refuse it.
+Import the vanilla backup instead, then build and deploy with the tool:
+
+```sh
+enshroudedbonker pristine import work/backup-20261019T063510
+enshroudedbonker tools get-emm        # or: config set emm_path <emm>
+enshroudedbonker mods enable big_stacks chest_slots ...   # build 8's set
+enshroudedbonker build && enshroudedbonker deploy
+```
 
 ## The maintainer's game install is patched
 

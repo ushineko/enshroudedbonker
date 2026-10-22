@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "version": "1269579|^/game38/branches/release_1.0|2026-10-16T12:58:37.402390Z",
+      "exe_sha256": "82e5020a8736348cd0374f004b2f5e5ef456b5bd27aa5420df34c7dd241cfeeb",
+      "emm_tag": "v0.2.0",
+      "verified": "2026-10-19",
+      "notes": "Enshrouded 1.0. All ten built-in tweaks applied with emm v0.2.0 and checked in game (spec 002 R5.4)."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=enshroudedbonker
+GenericName=Enshrouded mod builder
+Comment=Build and deploy Enshrouded mods, natively on Linux
+Exec=enshroudedbonker-gui
+Icon=enshroudedbonker
+Terminal=false
+Categories=Utility;
+Keywords=Enshrouded;mod;EML;emm;kfc;Proton;
+StartupNotify=true
+# The basename must stay io.ushineko.enshroudedbonker.desktop: Wayland matches
+# the window's app_id (internal/gui appID) to the desktop file of that name.
+StartupWMClass=io.ushineko.enshroudedbonker

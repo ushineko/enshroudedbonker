@@ -1,0 +1,13 @@
+{
+  "id": "big_stacks",
+  "name": "Big stacks",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "Multiplies how many of each stackable item fit in one slot: materials, ammunition, food, runes. Items that do not stack stay at one.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}
