@@ -137,7 +137,7 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 		return BuildResult{}, fmt.Errorf("%w; capture it with `pristine capture` (from a vanilla install) "+
 			"or `pristine import <dir>`", err)
 	}
-	emmPath, _, err := s.emm()
+	emmRunner, _, err := s.emm()
 	if err != nil {
 		return BuildResult{}, err
 	}
@@ -164,7 +164,7 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 	ev.progress(2, 5, "preparing the shadow game directory")
 	ev.logf(LevelInfo, "building %d mod(s): %s", len(names), strings.Join(names, ", "))
 	man, out, err := build.Run(ctx, build.Options{
-		Install: s.install, Pristine: p, Emm: emmPath, Mods: specs,
+		Install: s.install, Pristine: p, Emm: emmRunner, Mods: specs,
 		Shadow: s.paths.Shadow, Out: latestDir(s),
 		Log: func(line string) {
 			if strings.Contains(line, "Running mod") {
@@ -224,11 +224,11 @@ func CompatCheck(ctx context.Context, req CompatCheckRequest) (CompatCheckResult
 	if err != nil {
 		return CompatCheckResult{}, fmt.Errorf("%w; capture or import it first", err)
 	}
-	emmPath, _, err := s.emm()
+	emmRunner, _, err := s.emm()
 	if err != nil {
 		return CompatCheckResult{}, err
 	}
-	version, _ := emm.Version(ctx, emmPath)
+	version, _ := emm.Version(ctx, emmRunner)
 	dry := compat.DryRun{Fingerprint: fp, EmmVersion: version, When: time.Now().UTC(), OK: true}
 
 	names := tweaks.Names()
@@ -238,7 +238,7 @@ func CompatCheck(ctx context.Context, req CompatCheckRequest) (CompatCheckResult
 	}
 	ev := req.Events
 	ev.progress(1, len(names)+1, "dry run: every built-in together")
-	_, out, runErr := build.Run(ctx, build.Options{Install: s.install, Pristine: p, Emm: emmPath,
+	_, out, runErr := build.Run(ctx, build.Options{Install: s.install, Pristine: p, Emm: emmRunner,
 		Mods: all, Shadow: s.paths.Shadow, Log: s.emmLog()})
 	if ctx.Err() != nil {
 		return CompatCheckResult{}, fmt.Errorf("compat check: %w", ctx.Err())
@@ -251,7 +251,7 @@ func CompatCheck(ctx context.Context, req CompatCheckRequest) (CompatCheckResult
 		ev.logf(LevelWarn, "together they failed (%v); trying each alone", runErr)
 		for i, n := range names {
 			ev.progress(i+2, len(names)+1, "dry run: "+n)
-			_, one, err := build.Run(ctx, build.Options{Install: s.install, Pristine: p, Emm: emmPath,
+			_, one, err := build.Run(ctx, build.Options{Install: s.install, Pristine: p, Emm: emmRunner,
 				Mods: []build.ModSpec{{Name: n, Builtin: true}}, Shadow: s.paths.Shadow, Log: s.emmLog()})
 			if ctx.Err() != nil {
 				return CompatCheckResult{}, fmt.Errorf("compat check: %w", ctx.Err())

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ushineko/enshroudedbonker/internal/compat"
+	"github.com/ushineko/enshroudedbonker/internal/emm"
 	"github.com/ushineko/enshroudedbonker/internal/gamefiles"
 	"github.com/ushineko/enshroudedbonker/internal/steam"
 )
@@ -30,7 +31,7 @@ type fixture struct {
 	install *steam.Install
 	fp      compat.Fingerprint
 	ws      string
-	emm     string
+	emm     emm.Runner
 }
 
 func sandbox(t *testing.T) string {
@@ -199,7 +200,7 @@ func TestState(t *testing.T) {
 // built runs a full build into ws/builds/latest with the fake emm.
 func built(t *testing.T, f *fixture, mods []ModSpec) (*Pristine, *Manifest) {
 	t.Helper()
-	f.emm = installFakeEmm(t, filepath.Join(f.root, "bin"))
+	f.emm = emm.Runner{Path: installFakeEmm(t, filepath.Join(f.root, "bin"))}
 	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	man, _, err := Run(context.Background(), Options{Install: f.install, Pristine: p, Emm: f.emm, Mods: mods,
@@ -244,7 +245,7 @@ func TestRun_CollectsWhatEmmWroteAndLeavesGameAlone(t *testing.T) {
 
 func TestRun_RefusesOutputThatRewroteThePristinePrefix(t *testing.T) {
 	f := newFixture(t)
-	f.emm = installFakeEmm(t, filepath.Join(f.root, "bin"))
+	f.emm = emm.Runner{Path: installFakeEmm(t, filepath.Join(f.root, "bin"))}
 	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	t.Setenv("FAKE_EMM_MODE", "rewrite")
@@ -275,7 +276,7 @@ func TestRun_FailedRebuildKeepsPreviousBuild(t *testing.T) {
 
 func TestRun_DryRunPublishesNothing(t *testing.T) {
 	f := newFixture(t)
-	f.emm = installFakeEmm(t, filepath.Join(f.root, "bin"))
+	f.emm = emm.Runner{Path: installFakeEmm(t, filepath.Join(f.root, "bin"))}
 	p, err := CapturePristine(filepath.Join(f.ws, "pristine"), f.install, f.fp, "")
 	require.NoError(t, err)
 	man, res, err := Run(context.Background(), Options{Install: f.install, Pristine: p, Emm: f.emm,

@@ -42,6 +42,12 @@ func printStatus(w io.Writer, r core.StatusResult) {
 	fact(w, "workspace", r.Paths.Workspace)
 	if r.Emm.Installed {
 		fact(w, "emm", fmt.Sprintf("%s (%s)", r.Emm.Version, r.Emm.Source))
+		if r.Emm.Wine != nil {
+			fact(w, "wine", fmt.Sprintf("%s (%s)", r.Emm.Wine.Bin, r.Emm.Wine.Source))
+		}
+		if r.Emm.Error != "" {
+			fact(w, "emm problem", r.Emm.Error)
+		}
 	} else {
 		fact(w, "emm", "not installed: "+r.Emm.Error)
 	}
@@ -122,16 +128,19 @@ func newDetectCmd() *cobra.Command {
 }
 
 func newToolsCmd() *cobra.Command {
-	g := group("tools", "Build and inspect the external tools")
+	g := group("tools", "Get and inspect the external tools")
 	g.AddCommand(&cobra.Command{
-		Use: "build-emm", Short: "Build the pinned emm from source (needs git and cargo)", Args: noArgs(),
+		Use: "get-emm", Short: "Download upstream's emm for the pinned release and check its SHA-256", Args: noArgs(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			res, err := core.BuildEmm(cmd.Context(), core.BuildEmmRequest{Request: request()})
+			res, err := core.GetEmm(cmd.Context(), core.GetEmmRequest{Request: request()})
 			if err != nil {
 				return err
 			}
 			fact(cmd.OutOrStdout(), "emm", res.Version)
 			fact(cmd.OutOrStdout(), "installed", res.Path)
+			if res.Wine != nil {
+				fact(cmd.OutOrStdout(), "wine", fmt.Sprintf("%s (%s)", res.Wine.Bin, res.Wine.Source))
+			}
 			return nil
 		},
 	})

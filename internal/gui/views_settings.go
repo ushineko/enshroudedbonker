@@ -17,7 +17,7 @@ var settingHelp = map[string]string{
 	"library_dir":   "Where imported mods are kept.",
 	"tools_dir":     "Where emm is built and kept.",
 	"workspace_dir": "Vanilla copies, builds and deploy archives (about 450 MB per game build).",
-	"emm_path":      "An emm binary to use instead of the one built into the tools directory.",
+	"emm_path":      "An emm to use instead of the downloaded release: a native binary, or an emm.exe, which runs under Wine.",
 }
 
 // buildSettings is every key `config set` accepts, each with its own Save.

@@ -207,7 +207,7 @@ a claim that the operation is wired, not that a button exists.
 func Actions() []string {
 	return []string{
 		// Overview
-		"status", "detect", "tools build-emm", "compat check", "pristine capture", "pristine import",
+		"status", "detect", "tools get-emm", "compat check", "pristine capture", "pristine import",
 		"deploy", "rollback",
 		// Tweaks
 		"tweaks list", "tweaks set", "tweaks reset",

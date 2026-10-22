@@ -120,7 +120,7 @@ echo
 echo "Next:"
 echo
 echo "  enshroudedbonker status            # the game, its build, emm, the vanilla copy"
-echo "  enshroudedbonker tools build-emm    # build the pinned emm from source (needs git and cargo)"
+echo "  enshroudedbonker tools get-emm      # download upstream's emm (runs under the game's Proton)"
 echo "  enshroudedbonker pristine capture   # keep a copy of the vanilla archive"
 echo "  enshroudedbonker tweaks list        # the built-in mods, and what each one can be set to"
 echo "  enshroudedbonker mods enable big_stacks"

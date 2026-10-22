@@ -2,16 +2,23 @@ package emm
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ushineko/enshroudedbonker/internal/wine"
 )
 
 // A synthetic emm log in the shape tracing prints it, colour codes included.
@@ -83,36 +90,58 @@ func TestParse_ModPrintMentioningErrorIsAModLine(t *testing.T) {
 	assert.Empty(t, r.Errors, "a mod's own print must not fail the build")
 }
 
+func noWine() (wine.Wine, error) { return wine.Wine{}, errors.New("no wine in this test") }
+
 func TestLocate(t *testing.T) {
 	tools := t.TempDir()
-	_, _, err := Locate(tools, "")
+	_, _, err := Locate(tools, "", noWine)
 	require.ErrorIs(t, err, ErrNotInstalled)
+	assert.Contains(t, err.Error(), "tools get-emm")
 
-	_, _, err = Locate(tools, filepath.Join(tools, "missing"))
+	_, _, err = Locate(tools, filepath.Join(tools, "missing"), noWine)
 	require.Error(t, err)
-	assert.False(t, errors.Is(err, ErrNotInstalled), "a bad emm_path is named, not replaced by the pinned build")
-	_, _, err = Locate(tools, tools)
+	assert.False(t, errors.Is(err, ErrNotInstalled), "a bad emm_path is named, not replaced by the pinned download")
+	_, _, err = Locate(tools, tools, noWine)
 	require.Error(t, err, "a directory is not an emm binary")
-
-	pinned := filepath.Join(InstallDir(tools), Binary)
-	require.NoError(t, os.MkdirAll(filepath.Dir(pinned), 0o750))
-	require.NoError(t, os.WriteFile(pinned, nil, 0o600))
-	p, src, err := Locate(tools, "")
-	require.NoError(t, err)
-	assert.Equal(t, pinned, p)
-	assert.Contains(t, src, Tag)
 
 	override := filepath.Join(tools, "my-emm")
 	require.NoError(t, os.WriteFile(override, nil, 0o600))
-	p, src, err = Locate(tools, override)
-	require.NoError(t, err)
-	assert.Equal(t, override, p, "the setting outranks the pinned build")
+	r, src, err := Locate(tools, override, noWine)
+	require.NoError(t, err, "a native emm_path never asks for Wine")
+	assert.Equal(t, Runner{Path: override}, r)
 	assert.Equal(t, "emm_path setting", src)
 }
 
-func TestInstallAndSourceDirsCarryTheTag(t *testing.T) {
+func TestLocate_DownloadedExeRunsUnderWine(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("emm.exe runs natively on Windows")
+	}
+	tools := t.TempDir()
+	exe := filepath.Join(InstallDir(tools), ExeName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0o750))
+	require.NoError(t, os.WriteFile(exe, nil, 0o600))
+
+	_, _, err := Locate(tools, "", noWine)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "needs Wine")
+
+	w := wine.Wine{Bin: "/opt/proton/files/bin/wine", Source: "test"}
+	r, src, err := Locate(tools, "", func() (wine.Wine, error) { return w, nil })
+	require.NoError(t, err)
+	assert.Equal(t, Runner{Path: exe, Wine: &w, Prefix: PrefixDir(tools)}, r)
+	assert.Contains(t, src, Tag)
+
+	override := filepath.Join(tools, "other", "EMM.EXE")
+	require.NoError(t, os.MkdirAll(filepath.Dir(override), 0o750))
+	require.NoError(t, os.WriteFile(override, nil, 0o600))
+	r, _, err = Locate(tools, override, func() (wine.Wine, error) { return w, nil })
+	require.NoError(t, err)
+	assert.Equal(t, &w, r.Wine, "an emm_path ending in .exe also runs under Wine")
+}
+
+func TestDirsCarryTheTag(t *testing.T) {
 	assert.Equal(t, filepath.Join("/t", "emm-"+Tag), InstallDir("/t"))
-	assert.Equal(t, filepath.Join("/t", "src", "kfc-parser-"+Tag), SourceDir("/t"))
+	assert.Equal(t, filepath.Join("/t", "wineprefix"), PrefixDir("/t"))
 }
 
 // fakeEmm writes a shell script standing in for emm. body runs after the
@@ -148,7 +177,7 @@ echo 'Applied 4 patches' >&2
 `)
 	var logged []string
 	game := filepath.Join(t.TempDir(), "game dir with spaces")
-	res, err := Run(context.Background(), RunOptions{Path: path, GameDir: game, Patch: true,
+	res, err := Run(context.Background(), RunOptions{Runner: Runner{Path: path}, GameDir: game, Patch: true,
 		Log: func(l string) { logged = append(logged, l) }})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"run", "-g", game, "--patch"}, readArgv(t, argv))
@@ -163,7 +192,7 @@ echo 'Applied 4 patches' >&2
 
 func TestRun_ExportAndForceFlags(t *testing.T) {
 	path, argv := fakeEmm(t, "exit 0")
-	_, err := Run(context.Background(), RunOptions{Path: path, GameDir: "/g", Export: true,
+	_, err := Run(context.Background(), RunOptions{Runner: Runner{Path: path}, GameDir: "/g", Export: true,
 		ExportDir: "/out", Force: true})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"run", "-g", "/g", "--export", "--export-directory", "/out", "--force"},
@@ -172,7 +201,7 @@ func TestRun_ExportAndForceFlags(t *testing.T) {
 
 func TestRun_FailureReportsFirstErrorLine(t *testing.T) {
 	path, _ := fakeEmm(t, "echo 'Running mod mod_id=\"a\"'\necho 'Error: the archive is not what I expected'\necho 'Error: second'\nexit 3")
-	res, err := Run(context.Background(), RunOptions{Path: path, GameDir: "/g", Patch: true})
+	res, err := Run(context.Background(), RunOptions{Runner: Runner{Path: path}, GameDir: "/g", Patch: true})
 	require.Error(t, err)
 	assert.Equal(t, "emm failed: Error: the archive is not what I expected", err.Error())
 	assert.Equal(t, []string{"a"}, res.Ran, "the partial result is returned alongside the error")
@@ -180,7 +209,7 @@ func TestRun_FailureReportsFirstErrorLine(t *testing.T) {
 
 func TestRun_FailureWithoutErrorLineNamesExit(t *testing.T) {
 	path, _ := fakeEmm(t, "exit 7")
-	_, err := Run(context.Background(), RunOptions{Path: path, GameDir: "/g"})
+	_, err := Run(context.Background(), RunOptions{Runner: Runner{Path: path}, GameDir: "/g"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exit status 7")
 }
@@ -194,7 +223,7 @@ func TestRun_CancelReturnsContextError(t *testing.T) {
 		cancel()
 	}()
 	begin := time.Now()
-	_, err := Run(ctx, RunOptions{Path: path, GameDir: "/g", Log: func(string) {
+	_, err := Run(ctx, RunOptions{Runner: Runner{Path: path}, GameDir: "/g", Log: func(string) {
 		select {
 		case started <- struct{}{}:
 		default:
@@ -206,17 +235,131 @@ func TestRun_CancelReturnsContextError(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	path, _ := fakeEmm(t, "exit 0")
-	v, err := Version(context.Background(), path)
+	v, err := Version(context.Background(), Runner{Path: path})
 	require.NoError(t, err)
 	assert.Equal(t, "emm 0.0.0-fake", v)
 
-	_, err = Version(context.Background(), filepath.Join(t.TempDir(), "nope"))
+	_, err = Version(context.Background(), Runner{Path: filepath.Join(t.TempDir(), "nope")})
 	require.Error(t, err)
 }
 
-func TestBuild_NeedsGitAndCargo(t *testing.T) {
-	t.Setenv("PATH", t.TempDir())
-	_, err := Build(context.Background(), BuildOptions{ToolsDir: t.TempDir()})
+// fakeWine writes a wine and a wineserver standing in for Wine. The wine
+// records its argv and the Wine settings of its environment, then runs body.
+func fakeWine(t *testing.T, body string) (w wine.Wine, dir string) {
+	t.Helper()
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash is not on PATH")
+	}
+	dir = t.TempDir()
+	script := "#!" + bash + "\n" +
+		"printf '%s\\n' \"$@\" > '" + filepath.Join(dir, "argv.txt") + "'\n" +
+		"printf '%s\\n' \"WINEPREFIX=$WINEPREFIX\" \"WINEDEBUG=$WINEDEBUG\" \"WINEDLLOVERRIDES=$WINEDLLOVERRIDES\" " +
+		"\"DISPLAY=${DISPLAY-unset}\" \"WAYLAND_DISPLAY=${WAYLAND_DISPLAY-unset}\" > '" + filepath.Join(dir, "env.txt") + "'\n" +
+		body + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "wine"), []byte(script), 0o755)) //nolint:gosec // test executable
+	server := "#!" + bash + "\nprintf '%s %s\\n' \"$*\" \"$WINEPREFIX\" >> '" + filepath.Join(dir, "server.txt") + "'\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "wineserver"), []byte(server), 0o755)) //nolint:gosec // test executable
+	return wine.Wine{Bin: filepath.Join(dir, "wine"), Source: "test"}, dir
+}
+
+func TestRun_UnderWineTranslatesPathsAndSetsThePrefix(t *testing.T) {
+	w, dir := fakeWine(t, "echo 'Applied 2 patches'")
+	t.Setenv("DISPLAY", ":9")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-9")
+	r := Runner{Path: "/tools/emm-v0/emm.exe", Wine: &w, Prefix: "/tools/wineprefix"}
+	res, err := Run(context.Background(), RunOptions{Runner: r, GameDir: "/work/shadow", Patch: true,
+		Export: true, ExportDir: "/work/export"})
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Applied)
+	assert.Equal(t, []string{"/tools/emm-v0/emm.exe", "run", "-g", `Z:\work\shadow`, "--patch",
+		"--export", "--export-directory", `Z:\work\export`}, readArgv(t, filepath.Join(dir, "argv.txt")),
+		"wine gets emm.exe first, then emm's own argv with paths on Wine's Z: drive")
+	assert.Equal(t, []string{"WINEPREFIX=/tools/wineprefix", "WINEDEBUG=-all", "WINEDLLOVERRIDES=mscoree,mshtml=",
+		"DISPLAY=unset", "WAYLAND_DISPLAY=unset"}, readArgv(t, filepath.Join(dir, "env.txt")),
+		"the tool's own prefix, no mono or Gecko dialogs, and no display")
+	assert.NoFileExists(t, filepath.Join(dir, "server.txt"), "a run that finished leaves the prefix alone")
+}
+
+func TestRun_CancelUnderWineStopsThePrefix(t *testing.T) {
+	w, dir := fakeWine(t, "echo started\nexec sleep 30")
+	ctx, cancel := context.WithCancel(context.Background())
+	r := Runner{Path: "/t/emm.exe", Wine: &w, Prefix: "/t/wineprefix"}
+	_, err := Run(ctx, RunOptions{Runner: r, GameDir: "/g", Log: func(string) { cancel() }})
+	require.ErrorIs(t, err, context.Canceled)
+	b, err := os.ReadFile(filepath.Join(dir, "server.txt"))
+	require.NoError(t, err, "a cancel runs wineserver -k")
+	assert.Equal(t, "-k /t/wineprefix\n", string(b), "for the tool's prefix, not the game's")
+}
+
+// serve answers the release and licence URLs from memory.
+func serve(t *testing.T, exe []byte, status int) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/LICENSE":
+			_, _ = w.Write([]byte("GPL-3.0 text"))
+		case "/emm.exe":
+			w.WriteHeader(status)
+			_, _ = w.Write(exe)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func sum(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
+func TestGet_KeepsADownloadMatchingThePin(t *testing.T) {
+	exe := []byte("MZ synthetic emm")
+	srv := serve(t, exe, http.StatusOK)
+	tools := t.TempDir()
+	var last int64
+	p, err := Get(context.Background(), GetOptions{ToolsDir: tools, URL: srv.URL + "/emm.exe",
+		LicenseURL: srv.URL + "/LICENSE", SHA256: sum(exe), Progress: func(done, _ int64) { last = done }})
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(InstallDir(tools), ExeName), p)
+	got, err := os.ReadFile(p)
+	require.NoError(t, err)
+	assert.Equal(t, exe, got)
+	assert.FileExists(t, filepath.Join(InstallDir(tools), "LICENSE"), "upstream's licence travels with the binary")
+	assert.Equal(t, int64(len(exe)), last)
+	entries, err := os.ReadDir(InstallDir(tools))
+	require.NoError(t, err)
+	assert.Len(t, entries, 2, "no temporary files are left behind")
+}
+
+func TestGet_RefusesAndDeletesADownloadNotMatchingThePin(t *testing.T) {
+	exe := []byte("MZ tampered")
+	srv := serve(t, exe, http.StatusOK)
+	tools := t.TempDir()
+	want := sum([]byte("something else"))
+	_, err := Get(context.Background(), GetOptions{ToolsDir: tools, URL: srv.URL + "/emm.exe",
+		LicenseURL: srv.URL + "/LICENSE", SHA256: want})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "on PATH")
+	assert.Contains(t, err.Error(), sum(exe), "the error names the hash received")
+	assert.Contains(t, err.Error(), want, "and the hash expected")
+	assert.NoFileExists(t, filepath.Join(InstallDir(tools), ExeName))
+	assert.NoFileExists(t, filepath.Join(InstallDir(tools), ExeName+".download"))
+}
+
+func TestGet_HTTPErrorIsReported(t *testing.T) {
+	srv := serve(t, nil, http.StatusNotFound)
+	_, err := Get(context.Background(), GetOptions{ToolsDir: t.TempDir(), URL: srv.URL + "/emm.exe",
+		LicenseURL: srv.URL + "/LICENSE", SHA256: sum(nil)})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "404")
+}
+
+func TestVerify(t *testing.T) {
+	p := filepath.Join(t.TempDir(), ExeName)
+	require.NoError(t, os.WriteFile(p, []byte("not the release"), 0o600))
+	err := Verify(p)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), ExeSHA256)
 }

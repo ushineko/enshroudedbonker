@@ -27,7 +27,7 @@ Import the vanilla backup instead, then build and deploy with the tool:
 
 ```sh
 enshroudedbonker pristine import work/backup-20261019T063510
-enshroudedbonker tools build-emm      # or: config set emm_path <emm>
+enshroudedbonker tools get-emm        # or: config set emm_path <emm>
 enshroudedbonker mods enable big_stacks chest_slots ...   # build 8's set
 enshroudedbonker build && enshroudedbonker deploy
 ```

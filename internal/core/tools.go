@@ -8,35 +8,59 @@ import (
 	"github.com/ushineko/enshroudedbonker/internal/compat"
 	"github.com/ushineko/enshroudedbonker/internal/config"
 	"github.com/ushineko/enshroudedbonker/internal/emm"
+	"github.com/ushineko/enshroudedbonker/internal/wine"
 )
 
-// BuildEmmRequest builds the pinned emm from source.
-type BuildEmmRequest struct{ Request }
+// GetEmmRequest downloads the pinned emm.exe.
+type GetEmmRequest struct{ Request }
 
-// BuildEmmResult says where it went.
-type BuildEmmResult struct {
+// GetEmmResult says where it went and what runs it.
+type GetEmmResult struct {
 	Path    string `json:"path"`
 	Tag     string `json:"tag"`
 	Version string `json:"version"`
+	// Wine is the Wine it runs under, or nil where it runs natively.
+	Wine *wine.Wine `json:"wine,omitempty"`
 }
 
-// BuildEmm checks out the pinned kfc-parser tag and builds emm with cargo
-// (R3.3).
-func BuildEmm(ctx context.Context, req BuildEmmRequest) (BuildEmmResult, error) {
+/*
+GetEmm downloads upstream's emm.exe for the pinned tag, checks its SHA-256 and
+asks it for its version (spec 003 R1). On Linux that first run also creates
+emm's Wine prefix, so a later build doesn't pay for it.
+*/
+func GetEmm(ctx context.Context, req GetEmmRequest) (GetEmmResult, error) {
 	s, err := open(req.Request)
 	if err != nil {
-		return BuildEmmResult{}, err
+		return GetEmmResult{}, err
 	}
 	if err := config.MkdirAll(s.paths.Tools); err != nil {
-		return BuildEmmResult{}, err
+		return GetEmmResult{}, err
 	}
-	req.Events.logf(LevelInfo, "building emm %s from %s (this takes a few minutes)", emm.Tag, emm.Repo)
-	path, err := emm.Build(ctx, emm.BuildOptions{ToolsDir: s.paths.Tools, Log: s.emmLog()})
+	ev := req.Events
+	ev.logf(LevelInfo, "downloading %s %s from %s", emm.ExeName, emm.Tag, emm.ReleaseURL)
+	lastMB := int64(-1)
+	path, err := emm.Get(ctx, emm.GetOptions{ToolsDir: s.paths.Tools, Progress: func(done, total int64) {
+		if mb := done >> 20; mb != lastMB && total > 0 {
+			lastMB = mb
+			ev.progress(int(mb), int(total>>20), "downloading "+emm.ExeName)
+		}
+	}})
 	if err != nil {
-		return BuildEmmResult{}, err
+		return GetEmmResult{}, err
 	}
-	v, _ := emm.Version(ctx, path)
-	return BuildEmmResult{Path: path, Tag: emm.Tag, Version: v}, nil
+	ev.logf(LevelInfo, "SHA-256 matches the %s release", emm.Tag)
+	r, _, err := emm.Locate(s.paths.Tools, "", s.wine)
+	if err != nil {
+		return GetEmmResult{Path: path, Tag: emm.Tag}, err
+	}
+	if r.Wine != nil {
+		ev.logf(LevelInfo, "running it under %s (%s); the first run sets up its Wine prefix", r.Wine.Bin, r.Wine.Source)
+	}
+	v, err := emm.Version(ctx, r)
+	if err != nil {
+		return GetEmmResult{Path: path, Tag: emm.Tag, Wine: r.Wine}, err
+	}
+	return GetEmmResult{Path: path, Tag: emm.Tag, Version: v, Wine: r.Wine}, nil
 }
 
 // PristineCaptureRequest captures the installed archive as the vanilla copy.

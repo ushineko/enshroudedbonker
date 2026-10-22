@@ -40,8 +40,9 @@ type Config struct {
 	LibraryDir   string `json:"library_dir"`
 	ToolsDir     string `json:"tools_dir"`
 	WorkspaceDir string `json:"workspace_dir"`
-	// EmmPath points at an emm binary to use instead of the one tools
-	// build-emm installs. Empty uses the pinned build.
+	// EmmPath points at an emm to use instead of the one tools get-emm
+	// downloads: a native binary, or an emm.exe, which runs under Wine.
+	// Empty uses the pinned download.
 	EmmPath string     `json:"emm_path"`
 	Mods    []ModEntry `json:"mods"`
 	// Params holds per-mod parameter overrides: {"<mod>": {"<NAME>": value}}.

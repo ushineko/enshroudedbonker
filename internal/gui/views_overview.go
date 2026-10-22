@@ -107,20 +107,32 @@ func (u *ui) emmCard() fyne.CanvasObject {
 		return widgets.Card("emm", widget.NewLabel("Looking for emm…"))
 	}
 	if !e.Installed {
-		block, build := widgets.Action("Build emm "+e.PinnedTag,
-			"emm is upstream's Enshrouded Mod Manager, which applies the mods to the archive. It is "+
-				"built from the pinned kfc-parser tag with your git and cargo, into the tools "+
-				"directory; nothing is installed system-wide. Or point the emm_path setting at a binary.",
-			"Build emm", false, func() { u.buildEmm() })
-		build.Importance = widget.HighImportance
-		u.sh.Gate(build)
+		block, get := widgets.Action("Get emm "+e.PinnedTag,
+			"emm is upstream's Enshrouded Mod Manager, which applies the mods to the archive. This "+
+				"downloads upstream's own release (about 21 MB) into the tools directory and checks "+
+				"it before keeping it. It runs under the same Proton as the game; nothing is "+
+				"installed system-wide.",
+			"Get emm", false, func() { u.getEmm() })
+		get.Importance = widget.HighImportance
+		u.sh.Gate(get)
 		return widgets.Card("emm", widgets.FactRow("emm", "not installed", fd.StatusBad), block)
 	}
-	return widgets.Card("emm",
-		widgets.FactRow("emm", widgets.OrNone(e.Version, "installed"), fd.StatusGood),
+	status := fd.StatusGood
+	if e.Error != "" {
+		status = fd.StatusBad
+	}
+	rows := []fyne.CanvasObject{
+		widgets.FactRow("emm", widgets.OrNone(e.Version, "installed"), status),
 		widgets.PlainRow("From", e.Source),
 		widgets.PlainRow("Path", e.Path),
-		widgets.PlainRow("Pinned tag", e.PinnedTag))
+	}
+	if e.Wine != nil {
+		rows = append(rows, widgets.PlainRow("Runs under", e.Wine.Bin+" ("+e.Wine.Source+")"))
+	}
+	if e.Error != "" {
+		rows = append(rows, widgets.PlainRow("Problem", e.Error))
+	}
+	return widgets.Card("emm", rows...)
 }
 
 func (u *ui) pristineCard() fyne.CanvasObject {
@@ -237,13 +249,13 @@ func (u *ui) compatCheck() {
 	})
 }
 
-func (u *ui) buildEmm() {
-	u.perform("Building emm with cargo (a few minutes)…", "", func(ctx context.Context) error {
-		res, err := core.BuildEmm(ctx, core.BuildEmmRequest{Request: u.request()})
+func (u *ui) getEmm() {
+	u.perform("Downloading emm and setting up its Wine prefix…", "", func(ctx context.Context) error {
+		res, err := core.GetEmm(ctx, core.GetEmmRequest{Request: u.request()})
 		if err != nil {
 			return err
 		}
-		fyne.Do(func() { u.sh.OK("Built " + res.Version + " into " + res.Path + ".") })
+		fyne.Do(func() { u.sh.OK("Got " + res.Version + ". It is ready to build.") })
 		return nil
 	})
 }

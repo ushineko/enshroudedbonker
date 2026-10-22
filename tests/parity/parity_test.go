@@ -45,7 +45,7 @@ var notInTheGUI = map[string]string{
 TestTheCLIAndTheGUIExposeTheSameOperations walks the cobra tree and gui.Actions()
 and fails when either holds an operation the other does not.
 
-Leaf commands, not top-level groups: `tools` is a heading, `tools build-emm` is an
+Leaf commands, not top-level groups: `tools` is a heading, `tools get-emm` is an
 operation, and comparing at the group level would let a whole subcommand land
 with no GUI surface as long as its siblings had one.
 */

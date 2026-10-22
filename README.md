@@ -42,14 +42,20 @@ that is half updated is refused.
 ./install.sh --no-gui   # CLI only (no CGO needed)
 ```
 
-emm is built from the pinned kfc-parser tag with your `git` and `cargo`:
+Then get emm, upstream's mod manager, which does the patching:
 
 ```sh
-enshroudedbonker tools build-emm
+enshroudedbonker tools get-emm
 ```
 
-Or set `emm_path` to an emm binary you already have
-(`enshroudedbonker config set emm_path /path/to/emm`).
+This downloads upstream's own release (about 21 MB) and checks it before keeping
+it. Upstream releases emm for Windows only, so it runs under the same Proton
+Steam runs the game with, or your system's `wine` if the game hasn't been run
+yet. It uses a Wine prefix of its own, and never touches the game's. The window's
+Overview does the same with one button.
+
+Already have an emm? `enshroudedbonker config set emm_path /path/to/emm` (a
+Linux build, or an `emm.exe`).
 
 ## Use
 
@@ -114,7 +120,8 @@ MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 
 - First build of the tool: CLI and window over one headless core.
 - Ten built-in tweaks with adjustable parameters.
-- emm built from the pinned kfc-parser v0.2.0 tag.
+- emm: upstream's kfc-parser v0.2.0 release, downloaded, checked against its
+  SHA-256 and run under the game's Proton.
 - Compatibility gate: ledger, dry run and per-tweak disable.
 - Vanilla copy, shadow builds, atomic deploy and rollback.
 - Third-party EML mod import (directory or zip).

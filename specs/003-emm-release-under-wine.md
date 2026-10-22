@@ -62,18 +62,21 @@ exactly as a new player sees it, with no Rust toolchain anywhere in that path.
 ### R2 — Choosing a Wine
 
 1. Order (decided 2026-10-19):
-   1. the Wine that Steam uses for Enshrouded: the Proton named for app 1203620
-      in `CompatToolMapping` (Steam's `config.vdf`), or, when the game has no
-      entry of its own, Steam's default compatibility tool (the mapping's `"0"`
-      entry). The tool's name is resolved to its install directory, under
-      `steamapps/common` for Valve's Protons or `compatibilitytools.d` for
-      custom ones, and then to `files/bin/wine`;
+   1. the Proton that Steam last ran Enshrouded with. The game's Proton prefix
+      records it: Proton writes `compatdata/1203620/config_info`, whose lines
+      after the version are paths into that Proton (`<proton>/files/share/fonts/`,
+      `<proton>/files/lib/`). Its `files/bin/wine` is used when it still exists.
+      This needs no table from Steam's internal tool names (`proton_9`,
+      `proton_experimental`) to directories, and covers custom Protons in
+      `compatibilitytools.d` the same way. (`CompatToolMapping` in `config.vdf`
+      was considered first; on the maintainer's machine it has no entry for
+      the game at all, because Steam picks the game's Proton itself.)
    2. the system's default `wine` on `PATH`.
-2. If the first choice is found but fails `emm.exe --version`, the second is
-   tried, and both failures are reported.
-3. Status reports which Wine was chosen and why, and the GUI Overview shows it.
-4. When no Wine is found, the error names what was looked for and suggests
-   setting a Proton for Enshrouded in Steam or installing `wine`.
+2. Status reports which Wine was chosen and why, and the GUI Overview shows it.
+3. When no Wine is found, the error names each reason (no prefix yet, the Proton
+   since uninstalled, no `wine` on `PATH`) and suggests running the game once
+   with Proton or installing `wine`.
+4. The `wineserver` used to stop a prefix is the one beside the chosen `wine`.
 
 ### R3 — Running emm under Wine
 
@@ -125,31 +128,32 @@ assume Linux beyond R2 and R3.
 
 ## Acceptance Criteria
 
-- [ ] AC1. `tools get-emm` downloads `emm.exe` v0.2.0 from the real GitHub
-  release, verifies the SHA-256, and `status` then reports emm as
-  `mod-manager-cli 0.2.0` running under the chosen Wine.
-- [ ] AC2. A download whose hash does not match the pin is rejected and
+- [x] AC1. `tools get-emm` downloads `emm.exe` v0.2.0 from the real GitHub
+  release, verifies the SHA-256, and reports `mod-manager-cli 0.2.0` from
+  running it under the chosen Wine. `status` then reports the verified release
+  and the Wine, without starting Wine (it re-checks the digest instead).
+- [x] AC2. A download whose hash does not match the pin is rejected and
   deleted, and the error names both hashes (unit test with a local HTTP server).
-- [ ] AC3. Wine selection follows R2, unit-tested against a synthetic Steam
-  tree: a per-game mapping, only a default (`"0"`) mapping, a custom Proton in
-  `compatibilitytools.d`, a mapped Proton that is missing or fails, and the
-  `PATH` fallback. Each case reports its reason.
-- [ ] AC4. A fresh prefix is created with no dialog, with `DISPLAY` and
+- [x] AC3. Wine selection follows R2, unit-tested against a synthetic Steam
+  tree: the Proton named in `config_info`, that Proton uninstalled, no
+  `config_info`, a `config_info` naming no Proton, an unknown prefix, and no
+  Wine at all. Each case reports its reason.
+- [x] AC4. A fresh prefix is created with no dialog, with `DISPLAY` and
   `WAYLAND_DISPLAY` unset; verified over an SSH session with no display.
-- [ ] AC5. On the real install, a build of all ten tweaks with Wine emm applies
+- [x] AC5. On the real install, a build of all ten tweaks with Wine emm applies
   3014 patches, and the unpacked records of the touched types equal those of a
   native emm build. This uses the real `emm.exe` and Wine, not a mock.
-- [ ] AC6. Cancelling a Wine build leaves no `wineserver` or `emm.exe` process
+- [x] AC6. Cancelling a Wine build leaves no `wineserver` or `emm.exe` process
   for the tools prefix.
 - [ ] AC7. The game's Proton prefix is byte-identical before and after a Wine
   build (file list and modification times of `compatdata/1203620`).
 - [ ] AC8. A deploy of the Wine-built output loads in game, and big stacks show
   (spec 002 AC5's first check).
-- [ ] AC9. The parity test passes with `tools get-emm`, and no `build-emm`
+- [x] AC9. The parity test passes with `tools get-emm`, and no `build-emm`
   operation remains in core, the CLI or the GUI. `make test` passes
   headless with no Wine and no network (Wine and download tests skip when
   absent). `make lint` and `govulncheck ./...` are clean.
-- [ ] AC10. The README's first run names no Rust or git requirement; spec 002
+- [x] AC10. The README's first run names no Rust or git requirement; spec 002
   R3.2, R3.3, Q4 and Risks are corrected. `scripts/build-emm.sh` builds a binary
   that works through `emm_path`.
 - [ ] AC11. Fresh setup, end to end, as a new player: with empty config, data

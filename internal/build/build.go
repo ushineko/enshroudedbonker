@@ -35,7 +35,7 @@ type ModSpec struct {
 type Options struct {
 	Install  *steam.Install
 	Pristine *Pristine
-	Emm      string
+	Emm      emm.Runner
 	Mods     []ModSpec
 	// Shadow is the scratch game directory; it is emptied first.
 	Shadow string
@@ -139,7 +139,7 @@ func Run(ctx context.Context, o Options) (*Manifest, emm.Result, error) {
 		return man, emm.Result{}, err
 	}
 	logf("running emm with %d mod(s)", len(o.Mods))
-	res, err := emm.Run(ctx, emm.RunOptions{Path: o.Emm, GameDir: o.Shadow, Patch: true, Log: o.Log})
+	res, err := emm.Run(ctx, emm.RunOptions{Runner: o.Emm, GameDir: o.Shadow, Patch: true, Log: o.Log})
 	man.Order, man.Applied = res.Ran, res.Applied
 	for _, m := range o.Mods {
 		man.Mods = append(man.Mods, ModOutcome{

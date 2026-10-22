@@ -12,6 +12,7 @@ import (
 	"github.com/ushineko/enshroudedbonker/internal/library"
 	"github.com/ushineko/enshroudedbonker/internal/steam"
 	"github.com/ushineko/enshroudedbonker/internal/tweaks"
+	"github.com/ushineko/enshroudedbonker/internal/wine"
 )
 
 // InstallInfo is the game side of status.
@@ -36,7 +37,9 @@ type EmmInfo struct {
 	Source    string `json:"source,omitempty"`
 	Version   string `json:"version,omitempty"`
 	PinnedTag string `json:"pinned_tag"`
-	Error     string `json:"error,omitempty"`
+	// Wine is what runs emm.exe, or nil for a native emm.
+	Wine  *wine.Wine `json:"wine,omitempty"`
+	Error string     `json:"error,omitempty"`
 }
 
 // PristineInfo says whether the vanilla pair is held for this build.
@@ -146,13 +149,23 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 
 func emmInfo(ctx context.Context, s *session) EmmInfo {
 	info := EmmInfo{PinnedTag: emm.Tag}
-	path, source, err := s.emm()
+	r, source, err := s.emm()
 	if err != nil {
 		info.Error = err.Error()
 		return info
 	}
-	info.Installed, info.Path, info.Source = true, path, source
-	if v, err := emm.Version(ctx, path); err == nil {
+	info.Installed, info.Path, info.Source, info.Wine = true, r.Path, source, r.Wine
+	if s.cfg.EmmPath == "" {
+		// The pinned download is known by its digest. Asking it for its
+		// version would start Wine on every status.
+		if err := emm.Verify(r.Path); err != nil {
+			info.Error = err.Error()
+		} else {
+			info.Version = emm.ExeName + " " + emm.Tag + ", SHA-256 verified"
+		}
+		return info
+	}
+	if v, err := emm.Version(ctx, r); err == nil {
 		info.Version = v
 	} else {
 		info.Error = err.Error()

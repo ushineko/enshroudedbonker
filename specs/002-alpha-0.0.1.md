@@ -140,14 +140,14 @@ out of scope.
 
 1. **Pinned.** The project pins one upstream kfc-parser commit or tag in one
    place.
-2. **Distribution.** Our CI builds `emm` from the pinned upstream source for
-   linux-amd64 (later windows-amd64). It publishes the binary as an asset on
-   our own GitHub Release, with upstream's `LICENSE` and a source link. That
-   satisfies GPL-3.0 for redistributing the binary. The tool downloads that
-   asset into the tools directory and checks its SHA-256 against the value
-   recorded alongside the pin.
-3. **Local build.** `tools build-emm` builds from source with a local
-   `cargo`, for development and as a fallback.
+2. **Distribution.** *(Superseded by spec 003.)* The tool downloads
+   upstream's own released `emm.exe` for the pinned tag, checks its SHA-256
+   and runs it under Wine. Upstream publishes releases with Windows binaries
+   only; the earlier plan here (our CI building and attaching a Linux `emm`)
+   rested on the mistaken belief that upstream published no release.
+3. **Local build.** *(Superseded by spec 003.)* The program no longer builds
+   `emm`; `scripts/build-emm.sh` does, for developers, and `emm_path` points
+   at the result.
 4. **Check.** `tools check` runs `emm --version` and the schema probe (R2.4)
    against a scratch copy. It reports the result as nmsbonker's `tools check`
    reports MBINCompiler.
@@ -404,8 +404,8 @@ when `emm`'s logs make that visible.
 
 ## Risks & assumptions
 
-- **Upstream moves.** `emm` has no release for 1.0 and is under heavy
-  development, so its interface or behaviour may change between pins. The
+- **Upstream moves.** `emm` is under heavy development (its v0.2.0 release,
+  Windows binaries only, shipped the day of game 1.0; see spec 003), so its interface or behaviour may change between pins. The
   mitigations are pinning, the probe on every new pin, and parsing only
   documented log lines. If something breaks, report it upstream rather than
   working around it locally.
@@ -442,9 +442,10 @@ when `emm`'s logs make that visible.
 - **Q3.** Does `emm` need the `.dat` files for resource-only mods? (Spec 001
   ran without them.) The shadow dir symlinks them anyway, so this only
   affects the tests.
-- **Q4.** ~~Attach upstream's `emm` or build it?~~ Answered: build it from
-  the pinned tag (`tools build-emm`, needs git and cargo), or point
-  `emm_path` at a binary. Nothing GPL is redistributed in 0.0.1.
+- **Q4.** ~~Attach upstream's `emm` or build it?~~ Answered again by spec 003:
+  download upstream's released `emm.exe` and run it under Wine. The first
+  answer here (build from source with git and cargo) assumed upstream
+  published no release, which was wrong. Nothing GPL is redistributed.
 - **Q5.** EML mods must target their data precisely. A generic walk over
   every template's value tree ran `emm` out of Lua reference slots and
   aborted it (seen during recon). Built-in tweaks should use targeted

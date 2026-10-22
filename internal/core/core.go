@@ -16,6 +16,7 @@ import (
 	"github.com/ushineko/enshroudedbonker/internal/config"
 	"github.com/ushineko/enshroudedbonker/internal/emm"
 	"github.com/ushineko/enshroudedbonker/internal/steam"
+	"github.com/ushineko/enshroudedbonker/internal/wine"
 )
 
 // Level ranks a log line.
@@ -160,8 +161,18 @@ func (s *session) pristine() (*build.Pristine, error) {
 	return build.LoadPristine(s.paths.Pristine, fp)
 }
 
-func (s *session) emm() (path, source string, err error) {
-	return emm.Locate(s.paths.Tools, s.cfg.EmmPath)
+func (s *session) emm() (emm.Runner, string, error) {
+	return emm.Locate(s.paths.Tools, s.cfg.EmmPath, s.wine)
+}
+
+// wine picks the Wine for emm.exe: the Proton the game last ran under, else
+// the system's (spec 003 R2).
+func (s *session) wine() (wine.Wine, error) {
+	var compat string
+	if s.install != nil {
+		compat = s.install.CompatDataDir
+	}
+	return wine.Find(compat)
 }
 
 func (s *session) running() func() (bool, bool) {
