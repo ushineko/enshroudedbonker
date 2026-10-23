@@ -1,0 +1,13 @@
+{
+  "id": "rune_drops",
+  "name": "Rune drops",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "Adds runes to what enemies leave behind to loot, humanoids and wildlife alike, on top of their usual loot. The world's loot-amount setting scales the amount, as it does every drop.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}
