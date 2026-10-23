@@ -152,7 +152,8 @@ MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 ### 0.0.1-alpha
 
 - First build of the tool: CLI and window over one headless core.
-- Ten built-in tweaks with adjustable parameters.
+- Eleven built-in tweaks with adjustable parameters, including fast travel to
+  every point of interest on the map and a flatter glider glide.
 - emm: upstream's kfc-parser v0.2.0 release, downloaded, checked against its
   SHA-256 and run under the game's Proton.
 - Compatibility gate: ledger, dry run and per-tweak disable.

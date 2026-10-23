@@ -1,0 +1,149 @@
+name: Build
+
+# Linux only for now: the program does not run on Windows yet.
+#
+# Every push and PR runs the tests and the linter, and builds the tarballs and
+# the fynstall installers. A tag vVERSION also publishes them as a GitHub
+# Release whose notes are that version's changelog entry from README.md
+# (spec 007).
+#
+# A tag build passes VERSION= itself, so its binaries carry the plain version;
+# anything else is stamped VERSION-COMMIT-dev by the Makefile.
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test + Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        check-latest: true
+    - name: Install the window's build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols
+    - name: Test
+      run: make test
+    - name: Lint
+      run: make lint
+    - name: The CLI builds without cgo
+      run: CGO_ENABLED=0 go build ./cmd/enshroudedbonker
+
+  build:
+    name: Tarballs + installers (Linux)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        check-latest: true
+    - name: Install the window's build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols
+    - name: Pick the version
+      run: |
+        if [ "${GITHUB_REF_TYPE}" = tag ]; then
+          echo "MAKEVERSION=VERSION=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_ENV"
+        else
+          echo "MAKEVERSION=" >> "$GITHUB_ENV"
+        fi
+    - name: Build the tarballs
+      run: make release $MAKEVERSION
+    - name: Build the installers
+      run: make installer $MAKEVERSION
+    - name: Smoke-test both binaries
+      # Everything past this needs a game install, so what can be checked here
+      # is that the binaries start and say which version they were stamped with.
+      run: |
+        ./enshroudedbonker --version
+        ./enshroudedbonker --help > /dev/null
+        ./enshroudedbonker-gui --version
+        if [ "${GITHUB_REF_TYPE}" = tag ]; then
+          WANT=$(tr -d '[:space:]' < VERSION)
+          GOT=$(./enshroudedbonker --version | awk '{print $3}')
+          [ "$WANT" = "$GOT" ] || { echo "::error::the CLI reports $GOT, VERSION says $WANT"; exit 1; }
+        fi
+    - name: Run the command-line installer, then its uninstaller
+      # The runner's home is nobody's, so this is a whole per-user install and
+      # its removal.
+      run: |
+        APP=$(tr -d '[:space:]' < VERSION)
+        CLI="dist/enshroudedbonker-$APP-linux-amd64-cli-installer"
+        "dist/enshroudedbonker-$APP-linux-amd64-installer" --version | grep -F "enshroudedbonker $APP installer"
+        "$CLI" --version | grep -F "enshroudedbonker $APP installer"
+        "$CLI" --dry-run --yes
+        "$CLI" --yes
+        WANT=$(./enshroudedbonker --version | awk '{print $3}')
+        GOT=$("$HOME/.local/bin/enshroudedbonker" --version | awk '{print $3}')
+        [ "$WANT" = "$GOT" ] || { echo "::error::the installed CLI reports $GOT, the build $WANT"; exit 1; }
+        "$HOME/.local/share/io.ushineko.enshroudedbonker/uninstall"
+        [ ! -e "$HOME/.local/bin/enshroudedbonker" ] || { echo "::error::the uninstaller left the CLI's link"; exit 1; }
+        [ ! -e "$HOME/.local/share/io.ushineko.enshroudedbonker" ] || { echo "::error::the uninstaller left the install directory"; exit 1; }
+    - uses: actions/upload-artifact@v4
+      with:
+        name: linux-amd64
+        # Not the Windows CLI tarball `make release` also builds: the program
+        # does not run on Windows yet.
+        path: |
+          dist/*-linux-amd64.tar.gz
+          dist/*-linux-amd64-installer
+          dist/*-linux-amd64-cli-installer
+        if-no-files-found: error
+
+  release:
+    name: Release
+    needs: [test, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check the tag matches VERSION
+      run: |
+        test "v$(tr -d '[:space:]' < VERSION)" = "${GITHUB_REF_NAME}" \
+          || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION $(cat VERSION)"; exit 1; }
+    - uses: actions/download-artifact@v4
+      with:
+        path: dist
+        merge-multiple: true
+    - name: One checksum file for everything attached
+      run: |
+        cd dist
+        sha256sum * > SHA256SUMS
+        cat SHA256SUMS
+    # The notes are this version's changelog entry, written for someone deciding
+    # whether to upgrade. GitHub's generated notes stay underneath for the
+    # "Full Changelog" link. No entry, no release: that is the check that the
+    # changelog was written before the tag was pushed.
+    - name: Take the release notes from the changelog
+      run: |
+        ver="${GITHUB_REF_NAME#v}"
+        awk -v v="$ver" '
+          index($0, "### " v) == 1 { f = 1; next }
+          f && /^##/ { exit }
+          f { print }
+        ' README.md > NOTES.md
+        grep -q '[^[:space:]]' NOTES.md || { echo "::error::no changelog entry for $ver in README.md"; exit 1; }
+        echo "--- notes ---"; cat NOTES.md
+    - uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*
+        body_path: NOTES.md
+        generate_release_notes: true
+        prerelease: ${{ contains(github.ref_name, '-') }}
