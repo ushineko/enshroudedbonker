@@ -1,6 +1,6 @@
 # Spec 005 — Fast travel to every point of interest
 
-**Status**: INCOMPLETE
+**Status**: COMPLETE
 **Issue**: #9
 
 ## Context
@@ -63,8 +63,9 @@ The 30 remaining types, by sorting category:
   to a flame shrine, an ancient obelisk, a gem forge and a named area or town, and
   travel to one of them completes. Done 2026-10-23: the maintainer checked a mix of
   destinations on the deployed build (report: `enabled 21 marker types`); all worked.
-- [ ] AC6 (e2e, in game): with `FLAME_SITES` and `AREAS` off, those markers have
-  no travel option and dungeons and locations still do.
+- [x] AC6 (e2e, in game): with `FLAME_SITES` and `AREAS` off, those markers have
+  no travel option and dungeons and locations still do. Confirmed by the maintainer,
+  2026-10-23.
 
 ## Risks & Assumptions
 
