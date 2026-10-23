@@ -1,0 +1,13 @@
+{
+  "id": "glider_handling",
+  "name": "Glider handling",
+  "version": "0.1.0",
+  "capabilities": [
+    "patch"
+  ],
+  "description": "Scales how every glider flies. More lift gives a flatter glide that goes further; less drag keeps more speed; the turn rates, thrust and updraft charge can be scaled as well. Each value multiplies the glider's own, so better gliders stay better.",
+  "authors": [
+    "enshroudedbonker"
+  ],
+  "license": "MIT"
+}
