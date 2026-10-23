@@ -1,6 +1,6 @@
 # Spec 006 — Glider handling
 
-**Status**: INCOMPLETE
+**Status**: COMPLETE
 **Issue**: #11
 
 ## Context
@@ -44,9 +44,10 @@ Recon, 2026-10-23, game build 1273043 (`release_1.0`), by probe mods run with
   repository tests pass (`go test ./...`; the per-tweak tests cover it).
 - [x] AC2 (integration, real archive): a build at defaults reports
   `glider_handling: lift x2.5, drag x1 on 4 gliders`.
-- [ ] AC3 (e2e, in game): at defaults the glide is flatter than vanilla.
-- [ ] AC4 (e2e, in game): changing `DRAG` or a turn rate and rebuilding changes
-  how the glider flies in the expected direction.
+- [x] AC3 (e2e, in game): at defaults the glide is flatter than vanilla.
+- [x] AC4 (e2e, in game): changing `DRAG` or a turn rate and rebuilding changes
+  how the glider flies in the expected direction. AC3 and AC4 confirmed by the
+  maintainer, 2026-10-23.
 
 ## Risks & Assumptions
 
