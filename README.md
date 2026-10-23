@@ -1,6 +1,6 @@
 # enshroudedbonker
 
-**Version**: 0.0.1-alpha
+**Version**: 0.0.2-alpha
 
 Enshrouded mod builder for Linux (Steam, Proton). It runs EML Lua mods — its own
 built-in tweaks and ones you import — through upstream's
@@ -148,6 +148,16 @@ and [docs/findings.md](docs/findings.md); the scripts are in `recon/`.
 MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 
 ## Changelog
+
+### 0.0.2-alpha
+
+- The window: Overview and Build share one action strip along the bottom, so
+  Build and Deploy stay in place between the two (issue #6).
+- Build: the Last build table sits under a divider you can drag, and the
+  position is remembered.
+- Overview: the compatibility check has its own card after the two it needs,
+  and a disabled check says what is missing.
+- `uninstall.sh` names `rollback`, the command that exists, in its closing hint.
 
 ### 0.0.1-alpha
 

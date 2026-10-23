@@ -20,6 +20,7 @@ import (
 
 	"github.com/ushineko/enshroudedbonker/internal/compat"
 	"github.com/ushineko/enshroudedbonker/internal/core"
+	"github.com/ushineko/enshroudedbonker/internal/emm"
 	"github.com/ushineko/enshroudedbonker/internal/tweaks"
 )
 
@@ -70,8 +71,8 @@ func sectionBuilders() map[string]sectionEntry {
 	}
 }
 
-func appearanceSection(_ *ui, _ func() fyne.Resource) shell.Section {
-	return shell.AppearanceSection("enshroudedbonker 0.0.1 · emm v0.2.0")
+func appearanceSection(u *ui, _ func() fyne.Resource) shell.Section {
+	return shell.AppearanceSection("enshroudedbonker " + u.version + " · emm " + emm.Tag)
 }
 
 func aboutSection(u *ui, icon func() fyne.Resource) shell.Section {
