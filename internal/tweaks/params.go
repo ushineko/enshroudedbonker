@@ -190,11 +190,28 @@ func FormatValue(v float64, kind string) string {
 	case KindInt:
 		return strconv.FormatInt(int64(math.Round(v)), 10)
 	}
-	text := strconv.FormatFloat(v, 'f', -1, 64)
+	text := strconv.FormatFloat(roundFloat(v), 'f', -1, 64)
 	if !strings.ContainsAny(text, ".eE") {
 		text += ".0"
 	}
 	return text
+}
+
+/*
+roundFloat drops the float error a slider adds by summing its steps, so 1.0 plus
+two steps of 0.1 reads 1.2 and not 1.2000000000000002. Nine decimal places is far
+finer than any step a tweak declares. Values too large to scale are left as they
+are; they have no fraction to clean.
+*/
+func roundFloat(v float64) float64 {
+	if math.Abs(v) >= 1e15 {
+		return v
+	}
+	v = math.Round(v*1e9) / 1e9
+	if v == 0 {
+		return 0 // -0 would print as "-0"
+	}
+	return v
 }
 
 // Override rewrites the first `local NAME = value` line in a copy of the

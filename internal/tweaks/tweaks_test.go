@@ -189,6 +189,23 @@ func TestFormatValue_IntAndFloat(t *testing.T) {
 	assert.Equal(t, "1.5", FormatValue(1.5, ""))
 }
 
+// A slider sums its steps, and the sum carries float error: 1.0 plus two steps
+// of 0.1 is 1.2000000000000002. The value reads as the step it was set to, in
+// the window, the CLI and the Lua line alike (issue #18).
+func TestFormatValue_DropsFloatErrorFromSteps(t *testing.T) {
+	// Variables, so the sums happen at run time: Go folds constants exactly.
+	v, step := 1.0, 0.1
+	v += step
+	v += step
+	require.NotEqual(t, 1.2, v, "the sum must carry the error this test is about")
+	assert.Equal(t, "1.2", FormatValue(v, KindFloat))
+	assert.Equal(t, "1.5", FormatValue(1.5000000000000002, KindFloat))
+	a, b := 0.1, 0.2
+	assert.Equal(t, "0.3", FormatValue(a+b, KindFloat))
+	assert.Equal(t, "0.0", FormatValue(-1e-12, KindFloat), "no negative zero")
+	assert.Equal(t, "0.000001", FormatValue(1e-6, KindFloat), "a small value that is meant survives")
+}
+
 func TestClamp(t *testing.T) {
 	i := Param{Kind: KindInt, Min: 1, Max: 10}
 	for _, tc := range []struct {
