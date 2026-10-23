@@ -94,4 +94,4 @@ for entry in "${kept[@]}"; do
 done
 echo
 echo "A mod already installed in the game is also still there. To take it out"
-echo "before removing enshroudedbonker, run: enshroudedbonker undeploy"
+echo "before removing enshroudedbonker, run: enshroudedbonker rollback"
