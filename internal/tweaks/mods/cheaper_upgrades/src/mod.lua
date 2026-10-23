@@ -1,6 +1,7 @@
 -- @tweak name="Cheaper upgrades" group="Crafting"
 -- @desc Cuts the rune cost of upgrading weapons, armor and rings at the vendors,
 -- @desc and lets the world's upgrade-cost setting go below 0.25x. The two multiply.
+-- @desc Salvaging gear pays a share of its upgrade price, so it pays fewer runes too.
 -- @param UPGRADE_COST_FACTOR label="Upgrade cost" min=0.05 max=1 step=0.05 default=0.5 kind=float
 -- @param SETTING_MIN label="Lowest upgrade-cost setting" min=0.05 max=0.25 step=0.05 default=0.1 kind=float
 --
@@ -11,6 +12,8 @@ local UPGRADE_COST_FACTOR = 0.5
 local SETTING_MIN = 0.1
 
 -- 1. The per-type cost factors (weapons/shields 1.0, armor 0.75, rings 0.5).
+--    The salvage payout follows them as well (issue #20): at 0.25 a common
+--    dagger salvages for about 4 runes instead of about 14.
 local bt = game.assets.get_resources_by_type("keen::BalancingTable")[1].data
 bt.perkCostFactorWeaponsShield = bt.perkCostFactorWeaponsShield * UPGRADE_COST_FACTOR
 bt.perkCostFactorArmor = bt.perkCostFactorArmor * UPGRADE_COST_FACTOR

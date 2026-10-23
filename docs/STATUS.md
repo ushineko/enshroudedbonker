@@ -75,7 +75,7 @@ enshroudedbonker build && enshroudedbonker deploy
 | More chest slots ×2 (cap 96) | ✅ working (newly built chests) |
 | More resources: pickups ×3, harvestables ×3, terrain ÷3 | ✅ working (stone, wood, resin, fibre bushes, terrain) |
 | More loot: enemy rolls ×2, loot stacks ×2 | ✅ working (spores, cloth drop 2) |
-| Salvage returns ×2 (`trashStart/End`) | ⚠️ not explicitly confirmed. Rune payout for salvaging gear is *assumed* to come from these two balancing fields. Ask. |
+| Salvage returns: the rune multiplier is removed (issue #20) | ❌ `trashStart/End` do not move the payout. In game the payout is a share of the item's upgrade price: it followed `perkUpgradeCostSeed` (×4 took a common dagger from 4 to 14 runes), the per-type cost factors and the world's upgrade-cost setting, so it cannot be raised without raising prices. The recycling-ceiling part stays. |
 | World-setting sliders (resource drop to 10×, upgrade recycling to 200%) | ❓ not checked |
 | Fast-travel destinations (Dungeons, Locations) | ❓ not tested |
 | Faster crafting ×0.1 | ❓ not tested |

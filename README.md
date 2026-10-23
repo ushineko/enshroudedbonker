@@ -113,8 +113,8 @@ game files*, or import a backup with `pristine import <dir>`.
 | Resources | `more_resources` | Gathering, harvesting and terrain yields ×3; raises the resource-drop world setting's ceiling |
 | Loot | `more_loot` | Enemy drop slots and stack amounts ×2 |
 | Loot | `better_loot` | Rarer item weights and drop chances up |
-| Crafting | `salvage_returns` | Salvage returns ×2 (runes); raises the recycling setting's ceiling |
-| Crafting | `cheaper_upgrades` | Vendor upgrade costs ×0.5 |
+| Crafting | `salvage_returns` | Raises the upgrade-recycling setting's ceiling (runes back from salvaging upgraded gear) |
+| Crafting | `cheaper_upgrades` | Vendor upgrade costs ×0.5; salvage pays a share of the upgrade price, so it drops too |
 | Crafting | `crafting_time` | Crafting time ×0.1 |
 | Crafting | `factory_storage_access` | Craft from storage at every station |
 | World | `fast_travel_markers` | Dungeons, locations, flame sites and named areas become fast-travel points |
