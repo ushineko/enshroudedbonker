@@ -20,32 +20,72 @@ func latestDir(s *session) string { return filepath.Join(s.paths.Builds, "latest
 
 func referencedTypes(src []byte) []string { return library.TypesInSource(src) }
 
-// specs turns the enabled list into staged-mod specs.
-func (s *session) specs(names []string) ([]build.ModSpec, error) {
+/*
+specs turns the enabled list into staged-mod specs. The second result names any
+saved value for a parameter the built-in no longer has, which is left out.
+
+`tweaks set` and the window refuse a name the tweak does not declare, so such a
+value was set for a parameter an earlier version had (issue #20 removed one) or
+written into the config by hand. Stopping the build over it would leave the
+player with an error about a setting the window no longer shows.
+*/
+func (s *session) specs(names []string) ([]build.ModSpec, []string, error) {
 	lib, _, err := library.List(s.paths.Library)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	libByID := map[string]library.Mod{}
 	for _, m := range lib {
 		libByID[m.ID] = m
 	}
-	var out []build.ModSpec
+	var (
+		out   []build.ModSpec
+		stale []string
+	)
 	for _, n := range names {
 		if tweaks.Has(n) {
-			out = append(out, build.ModSpec{Name: n, Builtin: true, Overrides: s.cfg.ParamsFor(n)})
+			params, dropped := knownParams(n, s.cfg.ParamsFor(n))
+			for _, p := range dropped {
+				stale = append(stale, fmt.Sprintf("%s has no parameter %s any more; the saved value is "+
+					"ignored (`tweaks reset %s` clears it)", n, p, n))
+			}
+			out = append(out, build.ModSpec{Name: n, Builtin: true, Overrides: params})
 			continue
 		}
 		m, ok := libByID[n]
 		if !ok {
-			return nil, fmt.Errorf("%s is enabled but is neither a built-in nor in the library", n)
+			return nil, nil, fmt.Errorf("%s is enabled but is neither a built-in nor in the library", n)
 		}
 		if m.Unsupported != "" {
-			return nil, fmt.Errorf("%s cannot be built: %s", n, m.Unsupported)
+			return nil, nil, fmt.Errorf("%s cannot be built: %s", n, m.Unsupported)
 		}
 		out = append(out, build.ModSpec{Name: n, Dir: m.Dir})
 	}
-	return out, nil
+	return out, stale, nil
+}
+
+// knownParams splits saved values into those the built-in declares and the
+// sorted names of those it does not.
+func knownParams(name string, saved map[string]float64) (map[string]float64, []string) {
+	t, _ := tweaks.Get(name)
+	declared := map[string]bool{}
+	for _, p := range t.Params {
+		declared[p.Name] = true
+	}
+	var kept map[string]float64
+	var dropped []string
+	for k, v := range saved {
+		if !declared[k] {
+			dropped = append(dropped, k)
+			continue
+		}
+		if kept == nil {
+			kept = map[string]float64{}
+		}
+		kept[k] = v
+	}
+	sort.Strings(dropped)
+	return kept, dropped
 }
 
 /*
@@ -153,11 +193,12 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 			}
 		}
 	}
-	specs, err := s.specs(names)
+	specs, stale, err := s.specs(names)
 	if err != nil {
 		return BuildResult{}, err
 	}
-	res := BuildResult{Warnings: overlaps(specs)}
+	overlapping := overlaps(specs)
+	res := BuildResult{Warnings: append(stale, overlapping...)}
 	for _, w := range res.Warnings {
 		ev.logf(LevelWarn, "%s", w)
 	}
@@ -182,7 +223,7 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 		return BuildResult{Manifest: man}, err
 	}
 	ev.progress(5, 5, "done")
-	man.Overlaps = res.Warnings
+	man.Overlaps = overlapping
 	res.Manifest = man
 	ev.logf(LevelInfo, "applied %d patches; %d file(s) ready to deploy", man.Applied, len(man.Files))
 	return res, nil

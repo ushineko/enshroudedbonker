@@ -1,11 +1,11 @@
 {
   "id": "cheaper_upgrades",
   "name": "Cheaper upgrades",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "capabilities": [
     "patch"
   ],
-  "description": "Cuts the rune cost of upgrading weapons, armor and rings at the vendors, and lets the world's upgrade-cost setting go below 0.25x. The two multiply.",
+  "description": "Cuts the rune cost of upgrading weapons, armor and rings at the vendors, and lets the world's upgrade-cost setting go below 0.25x. The two multiply. Salvaging gear pays a share of its upgrade price, so it pays fewer runes too.",
   "authors": [
     "enshroudedbonker"
   ],

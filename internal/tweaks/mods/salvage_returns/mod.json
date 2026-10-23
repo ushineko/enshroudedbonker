@@ -1,11 +1,11 @@
 {
   "id": "salvage_returns",
   "name": "Salvage returns",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "capabilities": [
     "patch"
   ],
-  "description": "More runes from salvaging gear, and lets the world's upgrade-recycling setting (runes refunded when salvaging upgraded gear) go above 100%.",
+  "description": "Lets the world's upgrade-recycling setting (runes refunded when salvaging upgraded gear) go above 100%.",
   "authors": [
     "enshroudedbonker"
   ],
