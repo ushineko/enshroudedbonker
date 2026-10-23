@@ -160,8 +160,8 @@ straight to `main` when that is the right call. It is habit, not a gate.
   follow). `make build`, `make build-gui` and `make install` stamp `VERSION`
   only when HEAD is exactly on tag `vVERSION` with a clean tree. Otherwise
   they stamp `VERSION-COMMIT-dev` (`0.5.0-1a2b3c4-dev`), so a window built
-  from a branch can always be told from the released one. The Arch package
-  and the Release job pass `VERSION=` explicitly and always carry the plain
+  from a branch can always be told from the released one. The Release job
+  passes `VERSION=` explicitly and always carries the plain
   version. Don't hand-edit the stamp, and don't pass `VERSION=` to a local
   build to make it look released.
 - **`VERSION`, the `**Version**` line in `README.md` and the newest changelog
@@ -171,7 +171,7 @@ straight to `main` when that is the right call. It is habit, not a gate.
   silence. Check all three before tagging.
 - **The Release is published by CI, not by hand.** Pushing a `v*` tag runs the
   Release job in `.github/workflows/build.yml`, which checks the tag against
-  `VERSION`, builds the tarballs and the Arch package, and publishes a GitHub
+  `VERSION`, builds the Linux tarball and the fynstall installers, and publishes a GitHub
   Release with them attached. Do not also run `gh release create`; it will
   collide.
 - **The notes are that version's changelog entry**, extracted from `README.md`
