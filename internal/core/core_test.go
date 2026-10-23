@@ -298,6 +298,39 @@ func TestBuild_ForceSkipsDryRunForUnchecked(t *testing.T) {
 	assert.Equal(t, 3, br.Manifest.Applied)
 }
 
+// A saved value for a parameter the tweak no longer declares -- one a newer
+// version removed -- is ignored with a warning, and the build still runs with
+// the values that do apply (issue #20).
+func TestBuild_IgnoresAValueForARemovedParameter(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	_, err := core.PristineCapture(ctx, core.PristineCaptureRequest{Request: e.req})
+	require.NoError(t, err)
+	_, err = core.SetModsEnabled(ctx, core.SetModsEnabledRequest{Request: e.req, Names: []string{"big_stacks"}, Enabled: true})
+	require.NoError(t, err)
+	_, err = core.SetTweakParam(ctx, core.SetTweakParamRequest{Request: e.req, Name: "big_stacks",
+		Param: "STACK_MULTIPLIER", Value: 20})
+	require.NoError(t, err)
+
+	// What an older version left in the settings file.
+	raw, err := os.ReadFile(e.req.ConfigPath)
+	require.NoError(t, err)
+	var cfg map[string]any
+	require.NoError(t, json.Unmarshal(raw, &cfg))
+	cfg["params"].(map[string]any)["big_stacks"].(map[string]any)["REMOVED_PARAM"] = 10
+	raw, err = json.Marshal(cfg)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(e.req.ConfigPath, raw, 0o600))
+
+	br, err := core.Build(ctx, core.BuildRequest{Request: e.req, Force: true})
+	require.NoError(t, err)
+	require.Len(t, br.Warnings, 1)
+	assert.Contains(t, br.Warnings[0], "REMOVED_PARAM")
+	assert.Contains(t, e.logs(), "REMOVED_PARAM")
+	assert.Equal(t, map[string]float64{"STACK_MULTIPLIER": 20}, br.Manifest.Mods[0].Params)
+	assert.Empty(t, br.Manifest.Overlaps, "a stale value is not an overlap between mods")
+}
+
 func TestStatus_NoGameIsAFactNotAnError(t *testing.T) {
 	e := newEnv(t)
 	req := e.req
