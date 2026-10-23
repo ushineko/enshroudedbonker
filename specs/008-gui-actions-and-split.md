@@ -1,6 +1,6 @@
 # Spec 008 — One action strip, a draggable Last build, and an Overview a new player can follow
 
-**Status**: INCOMPLETE
+**Status**: COMPLETE
 **Issue**: #6
 
 ## Context
@@ -66,7 +66,7 @@ so no library change is needed.
   disabled and the note names exactly what is missing; with both present the
   button is enabled and no note is drawn. Test.
 - [x] AC7: `make test` and `make lint` pass.
-- [ ] AC8: Checked in the running window (see E2E Test Plan).
+- [x] AC8: Checked in the running window (see E2E Test Plan).
 
 ## Risks & Assumptions
 
