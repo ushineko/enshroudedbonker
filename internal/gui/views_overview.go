@@ -20,9 +20,10 @@ import (
 /*
 buildOverview answers "can this machine build, and what is in the game".
 
-Four cards, in the order the pipeline needs them: the game and its build, the
-tool, the vanilla copy, and what is deployed. A missing piece explains itself
-with the action that fixes it, rather than turning into a failed build later.
+Five cards, in the order a new player works through them: the game and its
+build, the tool, the vanilla copy, the compatibility check that needs both, and
+what is deployed. A missing piece explains itself with the action that fixes it,
+rather than turning into a failed build later.
 */
 func (u *ui) buildOverview() fyne.CanvasObject {
 	u.loadStatus()
@@ -31,9 +32,10 @@ func (u *ui) buildOverview() fyne.CanvasObject {
 		u.gameCard(), widget.NewSeparator(),
 		u.emmCard(), widget.NewSeparator(),
 		u.pristineCard(), widget.NewSeparator(),
+		u.compatCard(), widget.NewSeparator(),
 		u.deployCard(),
 	)
-	return container.NewBorder(nil, u.overviewActions(), nil, nil, u.sh.VScroll("overview", body))
+	return container.NewBorder(nil, u.actionStrip(), nil, nil, u.sh.VScroll("overview", body))
 }
 
 func (u *ui) gameCard() fyne.CanvasObject {
@@ -52,21 +54,47 @@ func (u *ui) gameCard() fyne.CanvasObject {
 	if st.Fingerprint != nil {
 		rows = append(rows, widgets.PlainRow("Game build", st.Fingerprint.Short()))
 	}
-	rows = append(rows, widgets.FactRow("Compatibility", st.Gate.Verdict, gateStatus(st.Gate.Verdict)),
-		widgets.Note(st.Gate.Reason, gateStatus(st.Gate.Verdict)))
-	if st.Gate.Verdict != compat.Verified && st.Gate.Verdict != compat.Inconsistent {
-		check := widget.NewButtonWithIcon("Run the compatibility check", theme.SearchIcon(), func() { u.compatCheck() })
-		u.sh.Gate(check)
-		if !st.Emm.Installed || !st.Pristine.Present {
-			check.Disable()
-		}
-		rows = append(rows, container.NewHBox(check))
-	}
 	if st.Install.RunningKnown && st.Install.Running {
 		rows = append(rows, widgets.Note("Enshrouded is running. Deploy and rollback wait until it is closed.",
 			fd.StatusWarn))
 	}
 	return widgets.Card("Game", rows...)
+}
+
+// compatCard follows the two cards the check needs, and says which of them is
+// still missing while its button cannot run.
+func (u *ui) compatCard() fyne.CanvasObject {
+	st := u.status
+	if !u.statusOK || !st.Install.Found {
+		return widgets.Card("Compatibility", widget.NewLabel("Needs the game."))
+	}
+	rows := []fyne.CanvasObject{
+		widgets.FactRow("Verdict", st.Gate.Verdict, gateStatus(st.Gate.Verdict)),
+		widgets.Note(st.Gate.Reason, gateStatus(st.Gate.Verdict)),
+	}
+	if st.Gate.Verdict == compat.Verified || st.Gate.Verdict == compat.Inconsistent {
+		return widgets.Card("Compatibility", rows...)
+	}
+	check := widget.NewButtonWithIcon("Run the compatibility check", theme.SearchIcon(), func() { u.compatCheck() })
+	u.sh.Gate(check)
+	rows = append(rows, container.NewHBox(check))
+	if missing := compatMissing(st); missing != "" {
+		check.Disable()
+		rows = append(rows, widgets.Note("Needs "+missing+", above.", fd.StatusInfo))
+	}
+	return widgets.Card("Compatibility", rows...)
+}
+
+// compatMissing names what the compatibility check is waiting for, or "".
+func compatMissing(st core.StatusResult) string {
+	var need []string
+	if !st.Emm.Installed {
+		need = append(need, "emm")
+	}
+	if !st.Pristine.Present {
+		need = append(need, "the vanilla copy")
+	}
+	return strings.Join(need, " and ")
 }
 
 func (u *ui) noGameBlock(reason string) fyne.CanvasObject {
@@ -198,11 +226,17 @@ func (u *ui) deployCard() fyne.CanvasObject {
 	return widgets.Card("Deployed", rows...)
 }
 
-func (u *ui) overviewActions() fyne.CanvasObject {
-	build := widget.NewButtonWithIcon("Build", theme.MediaPlayIcon(), func() {
-		u.sh.Select("Build")
-		u.startBuild(false)
-	})
+/*
+actionStrip is the row along the bottom of Overview and Build. Both sections draw
+this one strip, so Build and Deploy are in the same place whichever section the
+player is in. Build without a dry run exists only while the build is unchecked,
+and is last so that it moves nothing when it comes and goes.
+
+There is no Cancel: a build runs under the busy popup, which has its own and
+covers this strip while it runs.
+*/
+func (u *ui) actionStrip() fyne.CanvasObject {
+	build := widget.NewButtonWithIcon("Build", theme.MediaPlayIcon(), func() { u.buildHere(false) })
 	build.Importance = widget.HighImportance
 	deploy := widget.NewButtonWithIcon("Deploy…", theme.DownloadIcon(), func() { u.deployLast() })
 	deploy.Importance = widget.DangerImportance
@@ -210,7 +244,8 @@ func (u *ui) overviewActions() fyne.CanvasObject {
 	refresh := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), func() { u.sh.Invalidate() })
 	u.sh.Gate(build, deploy, rollback, refresh)
 	st := u.status
-	if !st.Install.Found || !st.Emm.Installed || !st.Pristine.Present || !st.Gate.Buildable() {
+	ready := st.Install.Found && st.Emm.Installed && st.Pristine.Present
+	if !ready || !st.Gate.Buildable() {
 		build.Disable()
 	}
 	if !u.canDeploy() {
@@ -219,7 +254,25 @@ func (u *ui) overviewActions() fyne.CanvasObject {
 	if !st.Pristine.Present || st.State == "vanilla" {
 		rollback.Disable()
 	}
-	return container.NewVBox(widget.NewSeparator(), container.NewHBox(build, deploy, rollback, refresh))
+	row := container.NewHBox(build, deploy, rollback, refresh)
+	if u.statusOK && st.Gate.Verdict == compat.Unchecked {
+		force := widget.NewButtonWithIcon("Build without a dry run", theme.WarningIcon(), func() { u.buildHere(true) })
+		u.sh.Gate(force)
+		if !ready {
+			force.Disable()
+		}
+		row.Add(force)
+	}
+	return container.NewVBox(widget.NewSeparator(), row)
+}
+
+// buildHere starts a build with its log on screen, moving to Build first when
+// the strip was pressed on Overview.
+func (u *ui) buildHere(force bool) {
+	if cur := u.sh.Current(); cur == nil || cur.Title() != "Build" {
+		u.sh.Select("Build")
+	}
+	u.startBuild(force)
 }
 
 func (u *ui) canDeploy() bool {
