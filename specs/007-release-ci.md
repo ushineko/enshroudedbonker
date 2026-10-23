@@ -1,6 +1,6 @@
 # Spec 007 — Publish releases from CI
 
-**Status**: INCOMPLETE
+**Status**: COMPLETE
 **Issue**: #13
 
 ## Context
@@ -49,9 +49,12 @@ installer smoke tests, and ototo's for the `VERSION` check and changelog notes.
   `0.0.1-alpha`.
 - [x] AC2: the notes step's awk, run on README.md for `0.0.1-alpha`, prints the
   changelog entry.
-- [ ] AC3: the workflow passes on the PR (test and build jobs).
-- [ ] AC4: pushing tag `v0.0.1-alpha` publishes a prerelease with the Linux
+- [x] AC3: the workflow passes on the PR (test and build jobs). PR #14, run
+  39908162208.
+- [x] AC4: pushing tag `v0.0.1-alpha` publishes a prerelease with the Linux
   tarball, both installers and `SHA256SUMS`, and the changelog entry as notes.
+  Run 39908769378; the downloaded files pass `sha256sum -c SHA256SUMS` and both
+  installers report `enshroudedbonker 0.0.1-alpha installer (fynstall 0.2.5)`.
 
 ## Risks & Assumptions
 
