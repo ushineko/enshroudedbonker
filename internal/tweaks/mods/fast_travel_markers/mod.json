@@ -1,11 +1,11 @@
 {
   "id": "fast_travel_markers",
   "name": "Fast-travel destinations",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "capabilities": [
     "patch"
   ],
-  "description": "Makes dungeon and location markers on the map fast-travel destinations. It does not lift the in-Shroud, falling or underwater blocks. Travelling to a marker can land you outside the playable map or leave a gravestone unreachable.",
+  "description": "Makes the points of interest on the map fast-travel destinations: dungeons, locations, flame sites (shrines, obelisks, gem forges) and named areas (towns, districts, area names). It does not lift the in-Shroud, falling or underwater blocks. Travelling to a marker can land you outside the playable map or leave a gravestone unreachable.",
   "authors": [
     "enshroudedbonker"
   ],

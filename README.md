@@ -117,7 +117,7 @@ game files*, or import a backup with `pristine import <dir>`.
 | Crafting | `cheaper_upgrades` | Vendor upgrade costs ×0.5 |
 | Crafting | `crafting_time` | Crafting time ×0.1 |
 | Crafting | `factory_storage_access` | Craft from storage at every station |
-| World | `fast_travel_markers` | Dungeons and locations become fast-travel points |
+| World | `fast_travel_markers` | Dungeons, locations, flame sites and named areas become fast-travel points |
 
 Each is a plain EML mod under `internal/tweaks/mods/`; it works when dropped into
 upstream EML's `mods/` directory as is. Parameters are the `local NAME = value`
