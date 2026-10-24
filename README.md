@@ -1,6 +1,6 @@
 # enshroudedbonker
 
-**Version**: 0.0.3-alpha
+**Version**: 0.0.4-alpha
 
 Enshrouded mod builder for Linux (Steam, Proton). It runs EML Lua mods — its own
 built-in tweaks and ones you import — through upstream's
@@ -149,6 +149,13 @@ and [docs/findings.md](docs/findings.md); the scripts are in `recon/`.
 MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 
 ## Changelog
+
+### 0.0.4-alpha
+
+- Rune drops: builds no longer fail at random with "expected
+  keen::ecs::ItemStackInfoResource". The rune stack is now added as a copy
+  of an existing stack, so a tweak that runs after it (More resources, on
+  the skeleton bone pickups) can change it (issue #24).
 
 ### 0.0.3-alpha
 

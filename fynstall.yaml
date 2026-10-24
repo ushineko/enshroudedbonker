@@ -11,7 +11,7 @@ app:
   id: io.ushineko.enshroudedbonker
   name: enshroudedbonker
   # VERSION's. A test holds the two together (internal/buildinfo).
-  version: 0.0.3-alpha
+  version: 0.0.4-alpha
   publisher: ushineko
   # Rendered from packaging/enshroudedbonker.svg (see the Makefile's icon target).
   icon: packaging/enshroudedbonker.png
