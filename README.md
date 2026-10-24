@@ -1,6 +1,6 @@
 # enshroudedbonker
 
-**Version**: 0.0.2-alpha
+**Version**: 0.0.3-alpha
 
 Enshrouded mod builder for Linux (Steam, Proton). It runs EML Lua mods — its own
 built-in tweaks and ones you import — through upstream's
@@ -149,6 +149,19 @@ and [docs/findings.md](docs/findings.md); the scripts are in `recon/`.
 MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 
 ## Changelog
+
+### 0.0.3-alpha
+
+- New tweak, Rune drops: every enemy corpse, humanoids and wildlife alike,
+  holds extra runes (2–5 by default, scaled by the world's loot-amount
+  setting) on top of its usual loot (issue #22).
+- Salvage returns: the "Runes from salvage" multiplier is removed. It never
+  changed the payout, which follows the item's upgrade price and cannot be
+  raised alone. Cheaper upgrades now says it lowers salvage too (issue #20).
+- A saved value for a setting a newer version removed no longer stops the
+  build; it is skipped with a warning that names `tweaks reset`.
+- Tweaks: stepped float values read as their step (`1.2`, not
+  `1.2000000000000002`) in the window, the CLI and the built mod (issue #18).
 
 ### 0.0.2-alpha
 
