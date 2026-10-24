@@ -25,7 +25,7 @@ local runeRef = bt.perkCostItem
 local runeId = game.assets.get_resource(runeRef, "keen::ItemInfo").data.itemId.value
 
 -- Lists are shared between corpse templates; each gets one stack.
-local seen, lists, corpses = {}, 0, 0
+local targets, seen, corpses = {}, {}, 0
 for _, r in ipairs(game.assets.get_resources_by_type("keen::ecs::TemplateResource")) do
   if string.match(r.data.name, "^LootContainer_Enemy_") then
     for _, comp in ipairs(r.data.components) do
@@ -36,16 +36,35 @@ for _, r in ipairs(game.assets.get_resources_by_type("keen::ecs::TemplateResourc
           local key = tostring(inv.guid)
           if not seen[key] then
             seen[key] = true
-            table.insert(inv.data.rootGroup.stacks, {
-              itemRef = runeRef, item = { value = runeId },
-              countMin = lo, countMax = RUNES_MAX, spawnProbability = CHANCE, weight = 1.0,
-              lootLabelsId = { value = 0 },
-            })
-            lists = lists + 1
+            table.insert(targets, inv.data.rootGroup.stacks)
           end
         end
       end
     end
+  end
+end
+
+-- The new stack starts as a copy of an existing one rather than a Lua table. emm
+-- keeps an inserted table as is, and a mod that runs later and writes to it (the
+-- bone pickups more_resources scales share two of these lists) fails the whole
+-- build with "expected keen::ecs::ItemStackInfoResource". A copy is a real value.
+local template
+for _, stacks in ipairs(targets) do
+  if #stacks > 0 then template = stacks[1]; break end
+end
+local lists = 0
+if template ~= nil then
+  for _, stacks in ipairs(targets) do
+    table.insert(stacks, template)
+    local s = stacks[#stacks]
+    s.itemRef = runeRef
+    s.item.value = runeId
+    s.countMin = lo
+    s.countMax = RUNES_MAX
+    s.spawnProbability = CHANCE
+    s.weight = 1.0
+    s.lootLabelsId.value = 0
+    lists = lists + 1
   end
 end
 print("rune_drops: " .. lo .. "-" .. RUNES_MAX .. " runes at " .. CHANCE .. " added to " .. lists ..

@@ -1,7 +1,7 @@
 {
   "id": "rune_drops",
   "name": "Rune drops",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "capabilities": [
     "patch"
   ],
