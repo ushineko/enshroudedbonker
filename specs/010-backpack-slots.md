@@ -167,8 +167,10 @@ it was needed:
   never re-derived for the equipped backpack, so re-raising the template does
   not fix it.
 - **In-game recovery**: un-equip the oversized backpack, save, reload, equip it
-  again. It comes back at its template's size (test 3, step 5). Restoring the
-  character file also works.
+  again. It comes back at its template's size (test 3, step 5). Without a
+  reload: equip a correctly sized backpack of the same type and discard the
+  oversized one (done after the final revert). Restoring the character file
+  also works.
 - Other header bytes: the third and sixth vary with the bag's contents (the
   sixth is close to, but not exactly, the number of occupied bag slots). Not
   needed here and not identified.
