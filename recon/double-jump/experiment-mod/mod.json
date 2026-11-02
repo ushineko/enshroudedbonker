@@ -1,0 +1,9 @@
+{
+  "id": "double_jump_experiment",
+  "name": "Double jump experiment",
+  "version": "0.0.1",
+  "capabilities": ["patch"],
+  "description": "Throwaway: a higher, cheaper double jump and later fall damage.",
+  "authors": ["enshroudedbonker"],
+  "license": "MIT"
+}

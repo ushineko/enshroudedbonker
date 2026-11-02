@@ -1,0 +1,10 @@
+seq Ability_Movement_Skill_JumpDoubleFirst 623315438
+seq Ability_Movement_Jump_Struggle_Submerged 3359642385
+seq Ability_Movement_Jump_Swim_Jump_Out 474239342
+seq Ability_Movement_Jump_HeadDive 1565914472
+seq Ability_Movement_Skill_JumpDoubleSecond 4176866494
+seq Ability_Movement_JumpSingle 3379137821
+seq Ability_Movement_Skill_Jump_Shrapnel_Attack 2355959018
+item Ability_DoubleJump 3701318086
+item Ability_SprintJump 2989969365
+item Ability_MountainGoatingJump 2556898978
