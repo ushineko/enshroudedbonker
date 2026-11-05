@@ -57,6 +57,7 @@ func printStatus(w io.Writer, r core.StatusResult) {
 		say(w, "Run `enshroudedbonker detect` to see every place that was examined.")
 		return
 	}
+	fact(w, "mods", r.Mods.Sentence)
 	fact(w, "game dir", r.Install.Dir)
 	fact(w, "found by", r.Install.Source)
 	fact(w, "steam build", r.Install.BuildID)
@@ -373,6 +374,33 @@ func newModsCmd() *cobra.Command {
 		},
 	})
 	return g
+}
+
+func newApplyCmd() *cobra.Command {
+	var asJSON bool
+	return jsonCmd(&cobra.Command{
+		Use: "apply", Short: "Get the enabled mods into the game, doing whatever is missing (quit the game first)",
+		Args: noArgs(),
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			res, err := core.Apply(cmd.Context(), core.ApplyRequest{Request: request()})
+			if err != nil {
+				return err
+			}
+			w := cmd.OutOrStdout()
+			if asJSON {
+				return writeJSON(w, res)
+			}
+			fact(w, "deployed", strings.Join(res.Deployed.Mods, ", "))
+			if len(res.Skipped) > 0 {
+				fact(w, "skipped", strings.Join(res.Skipped, ", ")+" (does not work on this game build)")
+			}
+			if res.Deployed.Archive != "" {
+				fact(w, "kept a copy of", res.Deployed.Archive)
+			}
+			say(w, "Stacks and chest sizes stay in your save even after a rollback.")
+			return nil
+		},
+	}, &asJSON)
 }
 
 func newBuildCmd() *cobra.Command {

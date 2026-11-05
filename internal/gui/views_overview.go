@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -17,25 +18,113 @@ import (
 	"github.com/ushineko/enshroudedbonker/internal/core"
 )
 
-/*
-buildOverview answers "can this machine build, and what is in the game".
+// applyButtonWidth holds the main button to one width across its two labels.
+const applyButtonWidth = 180
 
-Five cards, in the order a new player works through them: the game and its
-build, the tool, the vanilla copy, the compatibility check that needs both, and
-what is deployed. A missing piece explains itself with the action that fixes it,
-rather than turning into a failed build later.
+/*
+buildOverview answers "are my mods in the game" and offers the one press that
+puts them there. What that press does along the way, and every separate control
+for it, is on Advanced. The buttons are above the run, outside any scroller, so
+they stay where they are.
 */
 func (u *ui) buildOverview() fyne.CanvasObject {
 	u.loadStatus()
-	body := container.NewVBox(
-		widgets.Heading("Overview", "What this machine has, and what is in the game."),
+	u.loadReport()
+	top := container.NewVBox(u.sentenceLabel(), u.mainActions())
+	if st := u.status; st.Deployed != nil && len(st.Deployed.Mods) > 0 {
+		top.Add(widgets.DimWrapped("In the game: " + strings.Join(st.Deployed.Mods, ", ") + "."))
+	}
+	top.Add(widgets.DimWrapped("For single player and worlds you host; do not join other people's servers with " +
+		"a patched game. Bigger stacks and chests stay in a save after the mods are removed."))
+	top.Add(widget.NewSeparator())
+	return container.NewBorder(top, nil, nil, nil, u.runBlock())
+}
+
+// sentenceLabel is the first thing on Overview. It wraps, so a long list of
+// skipped tweaks cannot widen the window.
+func (u *ui) sentenceLabel() fyne.CanvasObject {
+	text := u.status.Mods.Sentence
+	if !u.statusOK || text == "" {
+		text = "Reading the game install…"
+	}
+	l := widget.NewLabelWithStyle(text, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	l.Wrapping = fyne.TextWrapWord
+	l.Importance = widgets.ImportanceFor(modsStatus(u.status.Mods.State))
+	return l
+}
+
+// mainActions is the row under the sentence. The main button is one button in
+// one place, whatever it currently does.
+func (u *ui) mainActions() fyne.CanvasObject {
+	st := u.status
+	main := widget.NewButtonWithIcon("Apply mods", theme.MediaPlayIcon(), func() { u.startApply() })
+	if st.Mods.State == core.ModsNeedsVerify {
+		main = widget.NewButtonWithIcon("Verify in Steam", theme.ViewRefreshIcon(), func() { u.verifyInSteam() })
+	}
+	main.Importance = widget.HighImportance
+	if !u.canApply() {
+		main.Disable()
+	}
+	remove := widget.NewButtonWithIcon("Remove mods…", theme.ContentUndoIcon(), func() { u.rollback() })
+	if !st.Pristine.Present || st.State == "vanilla" {
+		remove.Disable()
+	}
+	refresh := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), func() { u.sh.Invalidate() })
+	u.sh.Gate(main, remove, refresh)
+	return container.NewHBox(widgets.FixedWidth(main, applyButtonWidth), remove, refresh)
+}
+
+func (u *ui) canApply() bool {
+	st := u.status
+	if !u.statusOK || !st.Install.Found || (st.Install.RunningKnown && st.Install.Running) {
+		return false
+	}
+	return st.Mods.State != core.ModsNoneEnabled && st.Mods.State != core.ModsNoGame
+}
+
+func (u *ui) verifyInSteam() {
+	target, err := url.Parse(core.VerifyURL)
+	if err == nil {
+		err = u.sh.App.OpenURL(target)
+	}
+	if err != nil {
+		u.sh.Flash("Could not open Steam. In Steam, use Verify integrity of game files on Enshrouded.", fd.StatusWarn)
+		return
+	}
+	u.sh.Flash("Steam is verifying the game. When it finishes, press Refresh.", fd.StatusInfo)
+}
+
+func modsStatus(state string) fd.Status {
+	switch state {
+	case core.ModsApplied:
+		return fd.StatusGood
+	case core.ModsNeedsVerify, core.ModsNoGame:
+		return fd.StatusBad
+	case core.ModsNotApplied, core.ModsNoneEnabled:
+		return fd.StatusInfo
+	}
+	return fd.StatusWarn
+}
+
+/*
+buildAdvanced is every separate step of what Apply does, for the times one is
+wanted alone: the game and its build, the tool, the vanilla copy, the
+compatibility check, what is deployed, and the last build's report under a
+divider. A manual build shows its log on Overview.
+*/
+func (u *ui) buildAdvanced() fyne.CanvasObject {
+	u.loadStatus()
+	u.loadReport()
+	head := widgets.Heading("Advanced", "The separate steps behind Apply mods, and the details of each.")
+	cards := container.NewVBox(
 		u.gameCard(), widget.NewSeparator(),
 		u.emmCard(), widget.NewSeparator(),
 		u.pristineCard(), widget.NewSeparator(),
 		u.compatCard(), widget.NewSeparator(),
 		u.deployCard(),
 	)
-	return container.NewBorder(nil, u.actionStrip(), nil, nil, u.sh.VScroll("overview", body))
+	return container.NewBorder(head, u.advancedStrip(), nil, nil,
+		u.sh.VSplit("report", reportSplit, u.sh.VScroll("advanced", cards), u.reportBlock()))
 }
 
 func (u *ui) gameCard() fyne.CanvasObject {
@@ -227,22 +316,19 @@ func (u *ui) deployCard() fyne.CanvasObject {
 }
 
 /*
-actionStrip is the row along the bottom of Overview and Build. Both sections draw
-this one strip, so Build and Deploy are in the same place whichever section the
-player is in. Build without a dry run exists only while the build is unchecked,
-and is last so that it moves nothing when it comes and goes.
+advancedStrip is the row along the bottom of Advanced. Build without a dry run
+exists only while the build is unchecked, and is last so that it moves nothing
+when it comes and goes.
 
 There is no Cancel: a build runs under the busy popup, which has its own and
 covers this strip while it runs.
 */
-func (u *ui) actionStrip() fyne.CanvasObject {
-	build := widget.NewButtonWithIcon("Build", theme.MediaPlayIcon(), func() { u.buildHere(false) })
-	build.Importance = widget.HighImportance
+func (u *ui) advancedStrip() fyne.CanvasObject {
+	build := widget.NewButtonWithIcon("Build", theme.MediaPlayIcon(), func() { u.startBuild(false) })
 	deploy := widget.NewButtonWithIcon("Deploy…", theme.DownloadIcon(), func() { u.deployLast() })
 	deploy.Importance = widget.DangerImportance
-	rollback := widget.NewButtonWithIcon("Rollback…", theme.ContentUndoIcon(), func() { u.rollback() })
 	refresh := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), func() { u.sh.Invalidate() })
-	u.sh.Gate(build, deploy, rollback, refresh)
+	u.sh.Gate(build, deploy, refresh)
 	st := u.status
 	ready := st.Install.Found && st.Emm.Installed && st.Pristine.Present
 	if !ready || !st.Gate.Buildable() {
@@ -251,12 +337,9 @@ func (u *ui) actionStrip() fyne.CanvasObject {
 	if !u.canDeploy() {
 		deploy.Disable()
 	}
-	if !st.Pristine.Present || st.State == "vanilla" {
-		rollback.Disable()
-	}
-	row := container.NewHBox(build, deploy, rollback, refresh)
+	row := container.NewHBox(build, deploy, refresh)
 	if u.statusOK && st.Gate.Verdict == compat.Unchecked {
-		force := widget.NewButtonWithIcon("Build without a dry run", theme.WarningIcon(), func() { u.buildHere(true) })
+		force := widget.NewButtonWithIcon("Build without a dry run", theme.WarningIcon(), func() { u.startBuild(true) })
 		u.sh.Gate(force)
 		if !ready {
 			force.Disable()
@@ -264,15 +347,6 @@ func (u *ui) actionStrip() fyne.CanvasObject {
 		row.Add(force)
 	}
 	return container.NewVBox(widget.NewSeparator(), row)
-}
-
-// buildHere starts a build with its log on screen, moving to Build first when
-// the strip was pressed on Overview.
-func (u *ui) buildHere(force bool) {
-	if cur := u.sh.Current(); cur == nil || cur.Title() != "Build" {
-		u.sh.Select("Build")
-	}
-	u.startBuild(force)
 }
 
 func (u *ui) canDeploy() bool {
@@ -361,11 +435,11 @@ func (u *ui) deployLast() {
 }
 
 func (u *ui) rollback() {
-	dialogs.ConfirmDestructive(u.sh.Window, "Put the vanilla archive back?",
+	dialogs.ConfirmDestructive(u.sh.Window, "Remove the mods?",
 		"The vanilla copy of enshrouded.kfc and enshrouded.kfc_resources is written back and the "+
 			"containers emm added are removed. Quit the game first. Bigger stacks and chests already "+
 			"in your save stay as they are.",
-		"Rollback", func() {
+		"Remove", func() {
 			u.perform("Restoring the vanilla archive…", "The game is vanilla again.",
 				func(ctx context.Context) error {
 					_, err := core.Rollback(ctx, core.RollbackRequest{Request: u.request()})

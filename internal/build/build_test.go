@@ -509,3 +509,143 @@ func TestCopyFile_ReplacesAtomicallyAndLeavesNoTemp(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, os.ErrNotExist))
 }
+
+// partialFixture is an install a deploy patched and a Steam update then gave a
+// new executable and index, leaving the resource file and containers (spec 010
+// R4). Each test breaks one thing about it.
+type partialFixture struct {
+	*fixture
+	root     string
+	deployed *Deployed
+	held     *Pristine
+	updated  compat.Fingerprint
+}
+
+func newPartial(t *testing.T) *partialFixture {
+	t.Helper()
+	f := newFixture(t)
+	root := filepath.Join(f.ws, "pristine")
+	held, _, err := CapturePristine(root, f.install, f.fp, "")
+	require.NoError(t, err)
+
+	patched := synthRes + "APPENDED"
+	require.NoError(t, os.WriteFile(f.install.Resources(), []byte(patched), 0o644)) //nolint:gosec // fixture
+	resHash, err := gamefiles.HashFile(f.install.Resources())
+	require.NoError(t, err)
+	long := time.Now().Add(-72 * time.Hour)
+	emmContainers(t, f.install.Dir, long)
+	stamp(t, f.install.Resources(), long)
+	d := &Deployed{Fingerprint: f.fp, Files: []File{
+		{Name: steam.KfcName, SHA256: "the-patched-index"},
+		{Name: steam.ResourcesName, SHA256: resHash},
+	}}
+	for i := 55; i <= 63; i++ {
+		d.Added = append(d.Added, fmt.Sprintf("enshrouded_%03d.dat", i))
+	}
+
+	update := time.Now().Add(-time.Hour).Truncate(time.Second)
+	const newBuild = "7654322|^/game99/branches/test_branch|2026-02-01T00:00:00.000000Z"
+	require.NoError(t, os.WriteFile(f.install.Kfc(), []byte("KFC2\x00\x00"+newBuild+"\x00new-index"), 0o644)) //nolint:gosec // fixture
+	require.NoError(t, os.WriteFile(f.install.Exe(),
+		[]byte("MZ\x90\x00new exe\x00"+synthCommit+"\x00\x00\x000.0.2.0\x00tail"), 0o644)) //nolint:gosec // fixture
+	stamp(t, f.install.Kfc(), update)
+	f.install.LastUpdated = strconv.FormatInt(update.Unix(), 10)
+	fp, err := compat.Read(f.install.Exe(), f.install.Kfc(), "")
+	require.NoError(t, err)
+	return &partialFixture{fixture: f, root: root, deployed: d, held: held, updated: fp}
+}
+
+func TestCaptureInstall_AfterAPartialUpdateUsesTheHeldResourceFile(t *testing.T) {
+	f := newPartial(t)
+	kfc, err := gamefiles.HashFile(f.install.Kfc())
+	require.NoError(t, err)
+
+	signs, left, err := CaptureSigns(f.root, f.install, f.updated, f.deployed)
+	require.NoError(t, err)
+	assert.Empty(t, signs)
+	assert.Len(t, left, 9)
+
+	p, left, err := CaptureInstall(f.root, f.install, f.updated, f.deployed)
+	require.NoError(t, err)
+	assert.Len(t, left, 9)
+	assert.Equal(t, kfc, p.KfcSHA256, "the index is the install's new one")
+	assert.Equal(t, f.held.ResSHA256, p.ResSHA256, "the resource file is the vanilla one, not the install's")
+	assert.Equal(t, int64(len(synthRes)), p.ResSize)
+	assert.Contains(t, p.Source, f.held.Fingerprint.Short())
+	for _, d := range p.Dats {
+		assert.NotZero(t, d.Size, "leftover containers are not the game's own")
+	}
+}
+
+func TestCaptureInstall_RefusesWhenAPartialUpdateCannotBeShown(t *testing.T) {
+	for name, breakIt := range map[string]func(t *testing.T, f *partialFixture){
+		"no deploy record": func(_ *testing.T, f *partialFixture) { f.deployed = nil },
+		"the same build":   func(_ *testing.T, f *partialFixture) { f.deployed.Fingerprint = f.updated },
+		"no manifest":      func(_ *testing.T, f *partialFixture) { f.install.LastUpdated = "" },
+		"the index is older than the update": func(t *testing.T, f *partialFixture) {
+			stamp(t, f.install.Kfc(), time.Now().Add(-48*time.Hour))
+		},
+		"the index is the deployed one": func(t *testing.T, f *partialFixture) {
+			h, err := gamefiles.HashFile(f.install.Kfc())
+			require.NoError(t, err)
+			f.deployed.Files[0].SHA256 = h
+		},
+		"the resource file is not the deployed one": func(_ *testing.T, f *partialFixture) {
+			f.deployed.Files[1].SHA256 = "something-else"
+		},
+		"the resource file does not start with the vanilla bytes": func(t *testing.T, f *partialFixture) {
+			b := []byte("XRIGINAL-RESOURCE-BYTESAPPENDED")
+			require.NoError(t, os.WriteFile(f.install.Resources(), b, 0o644)) //nolint:gosec // fixture
+			h, err := gamefiles.HashFile(f.install.Resources())
+			require.NoError(t, err)
+			f.deployed.Files[1].SHA256 = h
+			stamp(t, f.install.Resources(), time.Now().Add(-72*time.Hour))
+		},
+		"the deployed build's copy is gone": func(t *testing.T, f *partialFixture) {
+			require.NoError(t, os.RemoveAll(f.held.Dir))
+		},
+		"the held resource file is damaged": func(t *testing.T, f *partialFixture) {
+			require.NoError(t, os.WriteFile(f.held.Resources(), []byte("damaged"), 0o600))
+		},
+		"an empty container the deploy did not add": func(_ *testing.T, f *partialFixture) {
+			f.deployed.Added = f.deployed.Added[1:]
+		},
+		"emm's in-place backup": func(t *testing.T, f *partialFixture) {
+			require.NoError(t, os.WriteFile(f.install.Kfc()+".bak", []byte("x"), 0o644)) //nolint:gosec // fixture
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newPartial(t)
+			breakIt(t, f)
+			fp := f.updated
+			signs, _, err := CaptureSigns(f.root, f.install, fp, f.deployed)
+			require.NoError(t, err)
+			assert.NotEmpty(t, signs)
+			_, _, err = CaptureInstall(f.root, f.install, fp, f.deployed)
+			require.ErrorIs(t, err, ErrLooksPatched)
+			_, err = LoadPristine(f.root, fp)
+			require.ErrorIs(t, err, ErrNoPristine, "a refused capture must leave nothing behind")
+		})
+	}
+}
+
+func TestPrunePristine_KeepsTheNewestAndWhatItIsToldTo(t *testing.T) {
+	root := t.TempDir()
+	base := time.Now().Add(-100 * time.Hour)
+	for i, id := range []string{"oldest", "older", "newer", "newest"} {
+		dir := filepath.Join(root, id)
+		require.NoError(t, os.MkdirAll(dir, 0o750))
+		b := fmt.Sprintf(`{"captured":%q}`, base.Add(time.Duration(i)*time.Hour).Format(time.RFC3339))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "pristine.json"), []byte(b), 0o600))
+	}
+	notOurs := filepath.Join(root, "not-a-copy")
+	require.NoError(t, os.MkdirAll(notOurs, 0o750))
+
+	removed := PrunePristine(root, "oldest")
+
+	assert.Equal(t, []string{"older"}, removed)
+	for _, id := range []string{"oldest", "newer", "newest", "not-a-copy"} {
+		assert.DirExists(t, filepath.Join(root, id))
+	}
+	assert.NoDirExists(t, filepath.Join(root, "older"))
+}

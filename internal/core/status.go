@@ -92,6 +92,8 @@ type StatusResult struct {
 	Tweaks     int             `json:"tweaks"`
 	LibraryMod int             `json:"library_mods"`
 	Enabled    []string        `json:"enabled"`
+	// Mods says in one sentence whether the player's mods are in the game.
+	Mods ModsInfo `json:"mods"`
 }
 
 // Status reports everything a front end shows on its first screen. A missing
@@ -115,6 +117,7 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 	res.Install.Source = s.gameSource
 	if s.installErr != nil {
 		res.Install.Error = s.installErr.Error()
+		res.Mods = ModsInfo{State: ModsNoGame, Sentence: "Enshrouded was not found. Set its folder under Advanced."}
 		return res, nil //nolint:nilerr // status reports a missing install, it doesn't fail on one
 	}
 	in := s.install
@@ -125,6 +128,7 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 	fp, err := s.fingerprint()
 	if err != nil {
 		res.Gate = compat.Decision{Verdict: compat.Unsupported, Reason: err.Error()}
+		res.Mods = modsInfo(s, &res)
 		return res, nil //nolint:nilerr // an unreadable fingerprint is a verdict, not a failure
 	}
 	res.Fingerprint = &fp
@@ -132,17 +136,17 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 		return res, err
 	}
 
+	if res.Deployed, err = build.LoadDeployed(s.paths.Deployed); err != nil {
+		return res, err
+	}
 	p, perr := s.pristine()
 	switch {
 	case perr == nil:
 		res.Pristine = PristineInfo{Present: true, Source: p.Source, Captured: p.Captured.Format("2006-01-02 15:04")}
 	case errors.Is(perr, build.ErrNoPristine):
-		res.Pristine.Patched, res.Pristine.Leftover, _ = build.PatchedSigns(in)
+		res.Pristine.Patched, res.Pristine.Leftover, _ = build.CaptureSigns(s.paths.Pristine, in, fp, res.Deployed)
 	default:
 		return res, perr
-	}
-	if res.Deployed, err = build.LoadDeployed(s.paths.Deployed); err != nil {
-		return res, err
 	}
 	if res.State, err = build.State(in, p, res.Deployed); err != nil {
 		return res, err
@@ -154,6 +158,7 @@ func Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
 			res.LastBuild.Mods = append(res.LastBuild.Mods, mo.Name)
 		}
 	}
+	res.Mods = modsInfo(s, &res)
 	return res, nil
 }
 

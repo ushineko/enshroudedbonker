@@ -20,23 +20,12 @@ const (
 	totalsHeight    = 74
 )
 
-// reportSplit is where the divider between the run and Last build starts, as
-// the share of the height above it, until the player drags it.
+// reportSplit is where the divider above Last build starts on Advanced, as the
+// share of the height above it, until the player drags it.
 const reportSplit = 0.55
 
-/*
-buildBuild is the step list and the live log, then the last build's manifest
-under a divider the player can drag, then the action strip Overview has too.
-Building and deploying are separate buttons so the moment between them -- the
-one where the output says a mod did not apply -- is not skipped.
-*/
-func (u *ui) buildBuild() fyne.CanvasObject {
-	u.loadStatus()
-	u.loadReport()
-	head := widgets.Heading("Build",
-		"Run every enabled mod through emm against a copy of the vanilla archive. Nothing reaches "+
-			"the game until you press Deploy.")
-
+// runBlock is the step list and the live log of the current or last run.
+func (u *ui) runBlock() fyne.CanvasObject {
 	totals := widget.NewLabel("")
 	totals.Wrapping = fyne.TextWrapWord
 	u.run.totals = totals
@@ -48,9 +37,7 @@ func (u *ui) buildBuild() fyne.CanvasObject {
 	log := u.run.pane.Widget(logpane.Options{
 		Title: "Output", Height: logPaneMinimum, Clipboard: u.sh.App.Clipboard(), Flash: u.sh.Flash,
 	})
-	run := container.NewBorder(nil, nil, widgets.FixedWidth(stepCol, stepColumnWidth), nil, log)
-	return container.NewBorder(head, u.actionStrip(), nil, nil,
-		u.sh.VSplit("report", reportSplit, run, u.reportBlock()))
+	return container.NewBorder(nil, nil, widgets.FixedWidth(stepCol, stepColumnWidth), nil, log)
 }
 
 func (u *ui) drawTotals() {

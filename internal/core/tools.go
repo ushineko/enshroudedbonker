@@ -95,14 +95,15 @@ func PristineCapture(_ context.Context, req PristineCaptureRequest) (PristineRes
 	if d := compat.Decide(fp, nil); d.Verdict == compat.Inconsistent {
 		return PristineResult{}, errors.New(d.Reason)
 	}
-	var deployedKfc string
-	if d, err := build.LoadDeployed(s.paths.Deployed); err == nil && d != nil {
-		deployedKfc = d.KfcSHA256()
-	}
-	p, leftover, err := build.CapturePristine(s.paths.Pristine, s.install, fp, deployedKfc)
+	d, err := build.LoadDeployed(s.paths.Deployed)
 	if err != nil {
 		return PristineResult{}, err
 	}
+	p, leftover, err := build.CaptureInstall(s.paths.Pristine, s.install, fp, d)
+	if err != nil {
+		return PristineResult{}, err
+	}
+	s.prunePristine(fp, d)
 	return PristineResult{Pristine: p, Leftover: leftover}, nil
 }
 
@@ -123,7 +124,24 @@ func PristineImport(_ context.Context, req PristineImportRequest) (PristineResul
 	if err != nil {
 		return PristineResult{}, err
 	}
+	d, err := build.LoadDeployed(s.paths.Deployed)
+	if err != nil {
+		return PristineResult{Pristine: p}, err
+	}
+	s.prunePristine(fp, d)
 	return PristineResult{Pristine: p}, nil
+}
+
+// prunePristine drops old vanilla copies, keeping the installed build's and,
+// because a partial update needs it, the deployed build's.
+func (s *session) prunePristine(fp compat.Fingerprint, d *build.Deployed) {
+	keep := []string{fp.ID()}
+	if d != nil {
+		keep = append(keep, d.Fingerprint.ID())
+	}
+	for _, id := range build.PrunePristine(s.paths.Pristine, keep...) {
+		s.req.Events.logf(LevelInfo, "removed the vanilla copy of an old game build (%s)", id)
+	}
 }
 
 // ConfigShowRequest reads the settings.

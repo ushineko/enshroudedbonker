@@ -99,7 +99,7 @@ func Root() *cobra.Command {
 		newStatusCmd(), newDetectCmd(),
 		newToolsCmd(), newCompatCmd(), newPristineCmd(),
 		newTweaksCmd(), newModsCmd(),
-		newBuildCmd(), newDeployCmd(), newRollbackCmd(), newReportCmd(),
+		newApplyCmd(), newBuildCmd(), newDeployCmd(), newRollbackCmd(), newReportCmd(),
 		newConfigCmd(), newVersionCmd(),
 	)
 	return root
