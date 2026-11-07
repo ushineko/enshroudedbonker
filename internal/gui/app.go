@@ -50,7 +50,7 @@ type ui struct {
 	run buildRun
 }
 
-var sectionTitles = []string{"Overview", "Tweaks", "Mods", "Build", "Settings", "Appearance", "About"}
+var sectionTitles = []string{"Overview", "Tweaks", "Mods", "Advanced", "Settings", "Appearance", "About"}
 
 type sectionEntry struct {
 	icon    func() fyne.Resource
@@ -61,10 +61,10 @@ type sectionEntry struct {
 
 func sectionBuilders() map[string]sectionEntry {
 	return map[string]sectionEntry{
-		"Overview":   {icon: theme.HomeIcon, build: (*ui).buildOverview},
+		"Overview":   {icon: theme.HomeIcon, build: (*ui).buildOverview, detach: func(u *ui) { u.run.detach() }},
 		"Tweaks":     {icon: theme.SettingsIcon, section: tweaksSection},
 		"Mods":       {icon: theme.ListIcon, build: (*ui).buildMods},
-		"Build":      {icon: theme.MediaPlayIcon, build: (*ui).buildBuild, detach: func(u *ui) { u.run.detach() }},
+		"Advanced":   {icon: theme.MediaPlayIcon, build: (*ui).buildAdvanced},
 		"Settings":   {icon: theme.DocumentCreateIcon, build: (*ui).buildSettings},
 		"Appearance": {icon: theme.ColorPaletteIcon, section: appearanceSection},
 		"About":      {icon: theme.HelpIcon, section: aboutSection},
@@ -208,14 +208,14 @@ a claim that the operation is wired, not that a button exists.
 func Actions() []string {
 	return []string{
 		// Overview
-		"status", "detect", "tools get-emm", "compat check", "pristine capture", "pristine import",
-		"deploy", "rollback",
+		"status", "apply", "rollback",
+		// Advanced
+		"detect", "tools get-emm", "compat check", "pristine capture", "pristine import",
+		"build", "deploy", "report",
 		// Tweaks
 		"tweaks list", "tweaks set", "tweaks reset",
 		// Mods
 		"mods list", "mods enable", "mods disable", "mods import", "mods remove",
-		// Build
-		"build", "report",
 		// Settings
 		"config show", "config set",
 	}

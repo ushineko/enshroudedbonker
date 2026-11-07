@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -148,6 +149,9 @@ type BuildRequest struct {
 type BuildResult struct {
 	Manifest *build.Manifest `json:"manifest"`
 	Warnings []string        `json:"warnings,omitempty"`
+	// Skipped names enabled tweaks left out because they do not work on this
+	// game build. Only Apply leaves any out.
+	Skipped []string `json:"skipped,omitempty"`
 }
 
 // Build stages every enabled mod into a shadow game directory, runs emm, and
@@ -157,17 +161,23 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
-	ev := req.Events
 	if err := s.requireInstall(); err != nil {
 		return BuildResult{}, err
 	}
+	return s.build(ctx, req.Force, false)
+}
+
+// build is Build for a session. skipDisabled leaves out enabled tweaks the gate
+// disabled for this game build, where Build refuses them.
+func (s *session) build(ctx context.Context, force, skipDisabled bool) (BuildResult, error) {
+	ev := s.req.Events
 	ev.progress(1, 5, "checking the game build")
 	d, err := s.gate()
 	if err != nil {
 		return BuildResult{}, err
 	}
 	switch {
-	case d.Verdict == compat.Unchecked && !req.Force:
+	case d.Verdict == compat.Unchecked && !force:
 		return BuildResult{}, errors.New(d.Reason + " Run the compatibility check first.")
 	case d.Verdict == compat.Unsupported || d.Verdict == compat.Inconsistent:
 		return BuildResult{}, errors.New("refusing to build: " + d.Reason)
@@ -185,6 +195,17 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 	if len(names) == 0 {
 		return BuildResult{}, errors.New("no mods are enabled")
 	}
+	var skipped []string
+	if skipDisabled {
+		names, skipped = withoutDisabled(names, d)
+		if len(names) == 0 {
+			return BuildResult{Skipped: skipped}, fmt.Errorf("none of the enabled mods work on this game build: %s",
+				strings.Join(skipped, ", "))
+		}
+		for _, n := range skipped {
+			ev.logf(LevelWarn, "%s does not work on this game build; leaving it out", n)
+		}
+	}
 	for _, n := range d.Disabled {
 		for _, e := range names {
 			if e == n {
@@ -198,7 +219,7 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 		return BuildResult{}, err
 	}
 	overlapping := overlaps(specs)
-	res := BuildResult{Warnings: append(stale, overlapping...)}
+	res := BuildResult{Warnings: append(stale, overlapping...), Skipped: skipped}
 	for _, w := range res.Warnings {
 		ev.logf(LevelWarn, "%s", w)
 	}
@@ -227,6 +248,18 @@ func Build(ctx context.Context, req BuildRequest) (BuildResult, error) {
 	res.Manifest = man
 	ev.logf(LevelInfo, "applied %d patches; %d file(s) ready to deploy", man.Applied, len(man.Files))
 	return res, nil
+}
+
+// withoutDisabled splits names into those the gate allows and those it disabled.
+func withoutDisabled(names []string, d compat.Decision) (kept, disabled []string) {
+	for _, n := range names {
+		if slices.Contains(d.Disabled, n) {
+			disabled = append(disabled, n)
+		} else {
+			kept = append(kept, n)
+		}
+	}
+	return kept, disabled
 }
 
 // CompatCheckRequest runs the dry run.

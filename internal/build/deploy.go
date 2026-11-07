@@ -30,6 +30,9 @@ type Deployed struct {
 	// already the pristine pair.
 	Archive string   `json:"archive,omitempty"`
 	Mods    []string `json:"mods"`
+	// Params are each mod's parameter values as built. A record older than
+	// this field has none, which is nil rather than empty.
+	Params map[string]map[string]float64 `json:"params"`
 }
 
 // KfcSHA256 is the deployed archive index's hash, which is what status
@@ -37,6 +40,16 @@ type Deployed struct {
 func (d *Deployed) KfcSHA256() string {
 	for _, f := range d.Files {
 		if f.Name == steam.KfcName {
+			return f.SHA256
+		}
+	}
+	return ""
+}
+
+// ResourcesSHA256 is the deployed resource file's hash.
+func (d *Deployed) ResourcesSHA256() string {
+	for _, f := range d.Files {
+		if f.Name == steam.ResourcesName {
 			return f.SHA256
 		}
 	}
@@ -124,9 +137,10 @@ func Deploy(o DeployOptions) (*Deployed, error) {
 		return nil, err
 	}
 
-	rec := &Deployed{Fingerprint: o.Fingerprint, When: time.Now().UTC()}
+	rec := &Deployed{Fingerprint: o.Fingerprint, When: time.Now().UTC(), Params: map[string]map[string]float64{}}
 	for _, m := range o.Build.Mods {
 		rec.Mods = append(rec.Mods, m.Name)
+		rec.Params[m.Name] = m.Params
 	}
 
 	// Keep what is there unless it is the pristine pair or our own last deploy.

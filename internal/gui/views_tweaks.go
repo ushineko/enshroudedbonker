@@ -204,12 +204,9 @@ func (u *ui) noteParam(mod, param string, value float64, overridden bool) {
 }
 
 func (u *ui) tweaksActions() fyne.CanvasObject {
-	build := widget.NewButtonWithIcon("Build", theme.MediaPlayIcon(), func() {
-		u.sh.Select("Build")
-		u.startBuild(false)
-	})
-	build.Importance = widget.HighImportance
-	u.sh.Gate(build)
-	return container.NewVBox(widget.NewSeparator(), container.NewHBox(build,
+	apply := widget.NewButtonWithIcon("Apply mods", theme.MediaPlayIcon(), func() { u.startApply() })
+	apply.Importance = widget.HighImportance
+	u.sh.Gate(apply)
+	return container.NewVBox(widget.NewSeparator(), container.NewHBox(apply,
 		widgets.Dim("Values are kept in the settings file; the command line reads the same ones.")))
 }

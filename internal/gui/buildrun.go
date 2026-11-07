@@ -19,40 +19,41 @@ import (
 // tweak summary plus its own progress, so one build is a few hundred lines.
 const maxLogLines = 5000
 
-// The steps, in the order core reports them.
+// The steps, in the order core reports them. A manual build starts at Check and
+// leaves Deploy pending.
 const (
-	stepGate = iota
-	stepShadow
-	stepEmm
-	stepCollect
+	stepReady = iota
+	stepGate
+	stepPatch
+	stepDeploy
 )
 
 func buildSteps() []steps.Step {
 	return []steps.Step{
-		{Name: "Check", Note: "the game build against the compatibility ledger"},
-		{Name: "Prepare", Note: "a shadow game directory from the vanilla copy"},
-		{Name: "Patch", Note: "run emm over every enabled mod"},
-		{Name: "Collect", Note: "verify and keep the output for Deploy"},
+		{Name: "Get ready", Note: "emm and a vanilla copy"},
+		{Name: "Check", Note: "the mods against this build"},
+		{Name: "Patch", Note: "a copy, with emm"},
+		{Name: "Deploy", Note: "write it into the game"},
 	}
 }
 
 // stepFor maps core's progress messages onto steps.
 func stepFor(what string) (int, bool) {
-	switch what {
-	case "checking the game build":
+	switch {
+	case what == "getting ready":
+		return stepReady, true
+	case what == "checking the game build", strings.HasPrefix(what, "dry run: "):
 		return stepGate, true
-	case "preparing the shadow game directory":
-		return stepShadow, true
-	case "running emm":
-		return stepEmm, true
-	case "done":
-		return stepCollect, true
+	case what == "preparing the shadow game directory", what == "running emm", what == "done":
+		return stepPatch, true
+	case what == "writing into the game":
+		return stepDeploy, true
 	}
 	return 0, false
 }
 
-// buildRun outlives the Build section: the log is still there when the user
-// comes back from another section.
+// buildRun outlives Overview: the log is still there when the user comes back
+// from another section.
 type buildRun struct {
 	running   bool
 	cancelled bool
@@ -82,7 +83,7 @@ func (r *buildRun) detach() {
 func (r *buildRun) reset() {
 	r.running, r.cancelled, r.finished = true, false, false
 	r.steps.Reset()
-	r.steps.Set(stepGate, steps.Running, buildSteps()[stepGate].Note)
+	r.steps.Set(stepReady, steps.Running, buildSteps()[stepReady].Note)
 	r.summary, r.summarySt = "", fd.StatusInfo
 	r.pane.Model().Reset()
 	r.pane.SetFollowing(true)
@@ -137,11 +138,38 @@ func (u *ui) buildEvents() core.Events {
 	}
 }
 
-// startBuild runs a build off the UI thread behind a cancellable busy popup.
+// startBuild runs a manual build, for Advanced.
 func (u *ui) startBuild(force bool) {
+	u.startRun("Building…", func(ctx context.Context, req core.Request) func() {
+		res, err := core.Build(ctx, core.BuildRequest{Request: req, Force: force})
+		return func() {
+			u.finishRun(err, stepPatch, "kept", "The build was cancelled. The previous build, if any, is unchanged.",
+				"The build failed: ", func() (string, fd.Status) { return buildSummary(res) })
+		}
+	})
+}
+
+// startApply is the main button: whatever is missing, then the deploy.
+func (u *ui) startApply() {
+	u.startRun("Applying your mods…", func(ctx context.Context, req core.Request) func() {
+		res, err := core.Apply(ctx, core.ApplyRequest{Request: req})
+		return func() {
+			u.finishRun(err, stepDeploy, "written", "Applying was cancelled. The game was not changed.",
+				"The mods were not applied: ", func() (string, fd.Status) { return applySummary(res) })
+		}
+	})
+}
+
+// startRun runs an operation off the UI thread behind a cancellable busy popup,
+// on Overview, where its steps and log are. work returns what to do on the UI
+// thread once it ends.
+func (u *ui) startRun(what string, work func(ctx context.Context, req core.Request) func()) {
 	if u.sh.Working() {
 		u.sh.Flash("Something is already running. Wait for it, or cancel it.", fd.StatusWarn)
 		return
+	}
+	if cur := u.sh.Current(); cur == nil || cur.Title() != "Overview" {
+		u.sh.Select("Overview")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	u.run.reset()
@@ -149,48 +177,65 @@ func (u *ui) startBuild(force bool) {
 	u.drawTotals()
 	u.sh.RedrawStatus()
 
-	req := core.BuildRequest{Request: core.Request{ConfigPath: u.configPath, Events: u.buildEvents()}, Force: force}
+	req := core.Request{ConfigPath: u.configPath, Events: u.buildEvents()}
 	go func() {
-		done := u.sh.BusyCancellable("Building…", u.cancelBuild)
+		done := u.sh.BusyCancellable(what, u.cancelRun)
 		defer done()
 		defer cancel()
 		stop := u.run.pane.Pump()
-		res, err := core.Build(ctx, req)
+		finish := work(ctx, req)
 		stop()
-		fyne.Do(func() { u.finishBuild(res, err) })
+		fyne.Do(finish)
 	}()
 }
 
-func (u *ui) cancelBuild() {
+func (u *ui) cancelRun() {
 	if !u.run.running || u.run.cancel == nil {
 		return
 	}
 	u.run.cancelled = true
 	u.run.cancel()
-	u.sh.Flash("Cancelling. emm is being stopped; the last good build is kept.", fd.StatusInfo)
+	u.sh.Flash("Cancelling. Once the game is being written, that finishes first.", fd.StatusInfo)
 }
 
-// finishBuild records the outcome in one banner. UI thread.
-func (u *ui) finishBuild(res core.BuildResult, err error) {
+// finishRun records the outcome in one banner. UI thread. An apply that was
+// already writing when Cancel was pressed still succeeds, and is reported so.
+func (u *ui) finishRun(err error, last int, lastNote, cancelled, failed string, summary func() (string, fd.Status)) {
 	u.run.cancel = nil
 	switch {
-	case u.run.cancelled || errors.Is(err, context.Canceled):
+	case err != nil && (u.run.cancelled || errors.Is(err, context.Canceled)):
 		u.run.stop(steps.Cancelled, "cancelled")
-		u.run.summary, u.run.summarySt = "The build was cancelled. The previous build, if any, is unchanged.", fd.StatusWarn
+		u.run.summary, u.run.summarySt = cancelled, fd.StatusWarn
 	case err != nil:
 		u.run.stop(steps.Failed, err.Error())
-		u.run.summary, u.run.summarySt = "The build failed: "+err.Error(), fd.StatusBad
+		u.run.summary, u.run.summarySt = failed+err.Error(), fd.StatusBad
 	default:
-		u.run.steps.Advance(stepCollect, "kept")
-		u.run.steps.Finish(stepCollect, "kept")
+		u.run.steps.Advance(last, lastNote)
+		u.run.steps.Finish(last, lastNote)
 		u.run.running, u.run.finished = false, true
-		u.run.summary, u.run.summarySt = buildSummary(res)
+		u.run.summary, u.run.summarySt = summary()
 	}
 	u.run.running = false
 	u.sh.Flash(u.run.summary, u.run.summarySt)
 	u.drawTotals()
 	u.run.pane.Draw()
 	u.sh.Invalidate()
+}
+
+func applySummary(res core.ApplyResult) (string, fd.Status) {
+	d := res.Deployed
+	if d == nil {
+		return "Applying finished, but left no deploy record.", fd.StatusWarn
+	}
+	msg := fmt.Sprintf("%d mod(s) are in the game. Launch it to play.", len(d.Mods))
+	switch {
+	case len(res.Skipped) > 0:
+		return msg + " Left out, because they do not work on this game build: " +
+			strings.Join(res.Skipped, ", ") + ".", fd.StatusWarn
+	case len(res.Warnings) > 0:
+		return msg + " See the warnings in the output.", fd.StatusWarn
+	}
+	return msg, fd.StatusGood
 }
 
 func buildSummary(res core.BuildResult) (string, fd.Status) {

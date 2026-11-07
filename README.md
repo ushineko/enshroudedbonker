@@ -92,14 +92,20 @@ Linux build, or an `emm.exe`).
 
 ```sh
 enshroudedbonker status               # the game, its build, emm, the vanilla copy
-enshroudedbonker pristine capture     # keep a vanilla copy (from an unpatched install)
 enshroudedbonker tweaks list
 enshroudedbonker mods enable big_stacks chest_slots
 enshroudedbonker tweaks set big_stacks STACK_MULTIPLIER 20
-enshroudedbonker build
-enshroudedbonker deploy               # quit the game first
+enshroudedbonker apply                # quit the game first
 enshroudedbonker rollback             # back to vanilla
 ```
+
+`apply`, or **Apply mods** in the window, does whatever is missing: it gets emm,
+keeps a vanilla copy of this game build, checks the mods against it, builds and
+deploys. A Steam update removes the mods; apply again afterwards. A built-in tweak
+that does not work on a new game build is left out and named.
+
+The separate steps are still there, on the window's Advanced page and as `pristine
+capture`, `compat check`, `build` and `deploy`.
 
 If the install is already patched, restore it with Steam's *Verify integrity of
 game files*, or import a backup with `pristine import <dir>`.

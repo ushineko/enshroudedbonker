@@ -6,6 +6,7 @@
 #   FAKE_EMM_MODE=ok|fail|rewrite   rewrite clobbers the first resource byte
 #   FAKE_EMM_FAIL_WITH=<mod id>     fail whenever that mod is staged
 #   FAKE_EMM_SILENT=<mod id>        that mod prints nothing of its own
+#   FAKE_EMM_SKIP=<mod id>          that mod is not run at all
 set -eu
 if [ "${1:-}" = "--version" ]; then echo "emm 0.0.0-fake"; exit 0; fi
 if [ "${1:-}" != "run" ]; then echo "Error: unexpected command ${1:-}"; exit 2; fi
@@ -26,6 +27,7 @@ n=0
 for d in "$game"/mods/*/; do
   [ -d "$d" ] || continue
   id="$(basename "$d")"
+  if [ "$id" = "${FAKE_EMM_SKIP:-}" ]; then continue; fi
   printf '\033[32m INFO\033[0m Running mod mod_id="%s"\n' "$id"
   if [ "$id" = "${FAKE_EMM_FAIL_WITH:-}" ]; then
     echo "Error: mod $id failed: synthetic failure"

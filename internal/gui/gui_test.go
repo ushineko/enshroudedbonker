@@ -69,12 +69,15 @@ func TestTweaksLoadEveryGroup(t *testing.T) {
 	}
 }
 
-func TestStepForCoversEveryBuildPhase(t *testing.T) {
+func TestStepForCoversEveryPhase(t *testing.T) {
 	for what, want := range map[string]int{
+		"getting ready":                       stepReady,
 		"checking the game build":             stepGate,
-		"preparing the shadow game directory": stepShadow,
-		"running emm":                         stepEmm,
-		"done":                                stepCollect,
+		"dry run: big_stacks":                 stepGate,
+		"preparing the shadow game directory": stepPatch,
+		"running emm":                         stepPatch,
+		"done":                                stepPatch,
+		"writing into the game":               stepDeploy,
 	} {
 		got, ok := stepFor(what)
 		require.True(t, ok, what)
@@ -82,6 +85,17 @@ func TestStepForCoversEveryBuildPhase(t *testing.T) {
 	}
 	_, ok := stepFor("something else")
 	require.False(t, ok)
+}
+
+func TestApplySummaryNamesWhatWasLeftOut(t *testing.T) {
+	dep := &build.Deployed{Mods: []string{"a"}}
+	_, st := applySummary(core.ApplyResult{Deployed: dep})
+	require.Equal(t, fd.StatusGood, st)
+	msg, st := applySummary(core.ApplyResult{Deployed: dep, Skipped: []string{"b"}})
+	require.Equal(t, fd.StatusWarn, st)
+	require.Contains(t, msg, "b")
+	_, st = applySummary(core.ApplyResult{})
+	require.Equal(t, fd.StatusWarn, st)
 }
 
 func TestBuildSummaryWarnsWhenAModDidNotRun(t *testing.T) {

@@ -10,8 +10,9 @@ Three properties are load-bearing:
   - Every build starts from the pristine pair, never from the install, so the
     resource file never accumulates appended records across builds.
   - The pristine pair is captured once per fingerprint from an install that is
-    provably unpatched, or imported from a backup that carries the same build
-    string.
+    provably unpatched, assembled from the held resource file after a Steam
+    update that left it alone, or imported from a backup that carries the same
+    build string.
 */
 package build
 
@@ -22,6 +23,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -200,6 +203,144 @@ func ImportPristine(root string, in *steam.Install, fp compat.Fingerprint, dir s
 		return nil, fmt.Errorf("%s: %w", res, err)
 	}
 	return storePristine(root, in, fp, kfc, res, "imported from "+dir)
+}
+
+/*
+partialUpdate finds the vanilla resource file for an install where a Steam
+update replaced the archive index and left the resource file, which it does
+when that file did not change between the builds. The resource file is then
+still the one the last deploy wrote, so the vanilla bytes are those of the copy
+held for the deployed build.
+
+It returns that copy and the leftover containers, or nil when any part of this
+cannot be shown. Every condition is required: an install that fails one is
+judged by PatchedSigns as usual.
+*/
+func partialUpdate(root string, in *steam.Install, fp compat.Fingerprint, d *Deployed) (*Pristine, []string) {
+	if d == nil || d.Fingerprint.ID() == fp.ID() {
+		return nil, nil
+	}
+	if _, err := os.Stat(in.Kfc() + ".bak"); err == nil {
+		return nil, nil
+	}
+	secs, err := strconv.ParseInt(in.LastUpdated, 10, 64)
+	if err != nil || secs <= 0 {
+		return nil, nil
+	}
+	if madeBefore(in.Kfc(), time.Unix(secs, 0).Add(-updateSlack)) {
+		return nil, nil
+	}
+	if h, err := gamefiles.HashFile(in.Kfc()); err != nil || h == d.KfcSHA256() {
+		return nil, nil
+	}
+	if h, err := gamefiles.HashFile(in.Resources()); err != nil || h != d.ResourcesSHA256() {
+		return nil, nil
+	}
+	held, err := LoadPristine(root, d.Fingerprint)
+	if err != nil {
+		return nil, nil
+	}
+	if h, err := gamefiles.HashPrefix(in.Resources(), held.ResSize); err != nil || h != held.ResSHA256 {
+		return nil, nil
+	}
+	if h, err := gamefiles.HashFile(held.Resources()); err != nil || h != held.ResSHA256 {
+		return nil, nil
+	}
+	dats, err := in.DatFiles()
+	if err != nil {
+		return nil, nil
+	}
+	added := map[string]bool{}
+	for _, name := range d.Added {
+		added[name] = true
+	}
+	var leftover []string
+	for _, f := range dats {
+		if f.Size != 0 {
+			continue
+		}
+		if !added[f.Name] {
+			return nil, nil
+		}
+		leftover = append(leftover, f.Name)
+	}
+	return held, leftover
+}
+
+// CaptureSigns is what stands in the way of capturing the install, and the
+// containers a capture would leave behind. It is what CaptureInstall decides
+// on, without copying anything.
+func CaptureSigns(root string, in *steam.Install, fp compat.Fingerprint, d *Deployed) (signs, leftover []string, err error) {
+	if held, left := partialUpdate(root, in, fp, d); held != nil {
+		return nil, left, nil
+	}
+	if signs, leftover, err = PatchedSigns(in); err != nil {
+		return nil, nil, err
+	}
+	if d != nil {
+		if h, err := gamefiles.HashFile(in.Kfc()); err == nil && h == d.KfcSHA256() {
+			signs = append(signs, "it is the archive the last deploy wrote")
+		}
+	}
+	return signs, leftover, nil
+}
+
+// CaptureInstall makes the vanilla copy for the installed build: from the held
+// resource file after a partial update, otherwise from the install if it looks
+// vanilla.
+func CaptureInstall(root string, in *steam.Install, fp compat.Fingerprint, d *Deployed) (*Pristine, []string, error) {
+	if held, leftover := partialUpdate(root, in, fp, d); held != nil {
+		p, err := storePristine(root, in, fp, in.Kfc(), held.Resources(),
+			"captured from the install, with the resource file held for build "+held.Fingerprint.Short())
+		return p, leftover, err
+	}
+	var deployedKfc string
+	if d != nil {
+		deployedKfc = d.KfcSHA256()
+	}
+	return CapturePristine(root, in, fp, deployedKfc)
+}
+
+// keepPristine is how many vanilla copies pruning leaves, newest first, beside
+// the ones it was told to keep.
+const keepPristine = 2
+
+// PrunePristine removes all but the newest vanilla copies, by capture time, and
+// returns the fingerprint IDs it removed. Each copy is about 225 MB and every
+// game update makes one. The IDs in keep are never removed. A directory without
+// a readable record is left alone.
+func PrunePristine(root string, keep ...string) []string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	type copyOf struct {
+		id       string
+		captured time.Time
+	}
+	var held []copyOf
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join(root, e.Name(), "pristine.json"))
+		if err != nil {
+			continue
+		}
+		var p Pristine
+		if json.Unmarshal(b, &p) != nil {
+			continue
+		}
+		held = append(held, copyOf{e.Name(), p.Captured})
+	}
+	sort.Slice(held, func(i, j int) bool { return held[i].captured.After(held[j].captured) })
+	var removed []string
+	for i, c := range held {
+		if i < keepPristine || slices.Contains(keep, c.id) {
+			continue
+		}
+		if os.RemoveAll(filepath.Join(root, c.id)) == nil {
+			removed = append(removed, c.id)
+		}
+	}
+	return removed
 }
 
 func storePristine(root string, in *steam.Install, fp compat.Fingerprint, kfc, res, source string) (*Pristine, error) {
