@@ -1,6 +1,6 @@
 # enshroudedbonker
 
-**Version**: 0.0.4-alpha
+**Version**: 0.0.5-alpha
 
 Enshrouded mod builder for Linux (Steam, Proton). It runs EML Lua mods — its own
 built-in tweaks and ones you import — through upstream's
@@ -155,6 +155,21 @@ and [docs/findings.md](docs/findings.md); the scripts are in `recon/`.
 MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 
 ## Changelog
+
+### 0.0.5-alpha
+
+- One button: Overview says in one sentence what state the game is in, and
+  **Apply mods** does whatever is missing to get the enabled mods into it
+  (emm, the vanilla copy, the compatibility check, the build and the deploy).
+  A tweak that does not fit the current game build is skipped and named.
+  `enshroudedbonker apply` does the same. The separate steps are under
+  Advanced, which replaces Build (issue #29).
+- A Steam update that replaces the archive index but leaves the resource file
+  alone no longer needs Verify integrity of game files. Tested against a
+  simulated update only, so far.
+- Old vanilla copies of the archive are removed, keeping at most three.
+- Glider handling: lift goes up to ×10. Updraft charge at start keeps its
+  limit, because the game ignores a charge past full (issue #31).
 
 ### 0.0.4-alpha
 
