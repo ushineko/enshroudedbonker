@@ -2,7 +2,7 @@
 -- @desc Scales how every glider flies. More lift gives a flatter glide that goes
 -- @desc further; less drag keeps more speed. Each value multiplies the glider's
 -- @desc own, so better gliders stay better.
--- @param LIFT label="Lift (higher is flatter)" min=0.5 max=5 step=0.1 default=2.5 kind=float
+-- @param LIFT label="Lift (higher is flatter)" min=0.5 max=10 step=0.1 default=2.5 kind=float
 -- @param DRAG label="Forward drag (lower is faster)" min=0.1 max=3 step=0.05 default=1 kind=float
 -- @param SIDE_DRAG label="Sideways drag (higher drifts less)" min=0.1 max=3 step=0.05 default=1 kind=float
 -- @param THRUST label="Forward acceleration" min=0.5 max=3 step=0.1 default=1 kind=float
@@ -35,7 +35,7 @@ for _, item in ipairs(game.assets.get_resources_by_type("keen::ItemInfo")) do
     g.yawAngleSpeed = g.yawAngleSpeed * YAW
     g.pitchAngleSpeed = g.pitchAngleSpeed * PITCH
     g.rollAngleSpeed = g.rollAngleSpeed * ROLL
-    -- a charge fraction: full is 1
+    -- a charge fraction: full is 1, and the game ignores more (issue #31)
     g.updraftStrengthChargeStartValue = math.min(1, g.updraftStrengthChargeStartValue * UPDRAFT_START)
     n = n + 1
   end
