@@ -22,3 +22,4 @@ probes.json
 *.lua
 !/internal/tweaks/mods/*/src/*.lua
 !/recon/eml/*/src/*.lua
+!/recon/double-jump/**/*.lua

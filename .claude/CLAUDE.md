@@ -80,6 +80,10 @@ This repository is **public**. The following hold without exception:
   test fixtures. Tests that need game data read it from the user's install at test
   time and skip when it is absent (`ENSHROUDEDBONKER_GAME_DIR`). Synthetic fixtures are
   hand-written and small.
+  **Exception, granted by the maintainer:** `recon/double-jump/` may hold game-derived
+  names, ids, GUIDs and addresses, because that recon may feed a future build. It covers
+  that folder only. Disassembly listings and other verbatim game code stay out, in the
+  gitignored `work/`. Nothing under `recon/double-jump/` ships in a build or a release.
 - **No third-party mods.** EML mods from Nexus or elsewhere belong to their authors and
   stay in the user's library directory (`$XDG_DATA_HOME/enshroudedbonker/library/`).
   Only mods authored for this project (`internal/tweaks/mods/`) are committed.
