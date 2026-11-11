@@ -113,3 +113,8 @@ is an option if the project needs a different license.
 
 The in-game test session of 2026-10-19 (eight tweaks, build 7) is recorded in
 [STATUS.md](STATUS.md) and spec 002 R5.4.
+
+The character save format (`character0.ksd`: header, chunk layout, inventory
+records, and the equipped backpack's row count) was decoded on 2026-10-29 for
+spec 010, the shelved backpack tweak. It is written up in
+[spec 010, "Save-format findings"](../specs/010-backpack-slots.md#save-format-findings-2026-10-29).
