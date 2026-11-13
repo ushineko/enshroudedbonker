@@ -1,6 +1,6 @@
 # enshroudedbonker
 
-**Version**: 0.0.5-alpha
+**Version**: 0.0.6-alpha
 
 Enshrouded mod builder for Linux (Steam, Proton). It runs EML Lua mods — its own
 built-in tweaks and ones you import — through upstream's
@@ -156,6 +156,15 @@ and [docs/findings.md](docs/findings.md); the scripts are in `recon/`.
 MIT. emm (kfc-parser) is GPL-3.0 and is run as a separate program, never linked.
 
 ## Changelog
+
+### 0.0.6-alpha
+
+- Class loot weights: a new Loot tweak that thins each class's weapons, armor,
+  rings and shields out of random drops, so the classes you keep drop more
+  often. The game's loot tables do not look at the class you play; the weapon
+  pool is about half warrior gear. The default (warrior 0.4) evens out the
+  weapons; warrior 0 and ranger 0 make random weapons mostly staves and wands
+  (issue #33).
 
 ### 0.0.5-alpha
 
