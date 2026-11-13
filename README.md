@@ -120,6 +120,7 @@ game files*, or import a backup with `pristine import <dir>`.
 | Loot | `more_loot` | Enemy drop slots and stack amounts ×2 |
 | Loot | `better_loot` | Rarer item weights and drop chances up |
 | Loot | `rune_drops` | 2–5 runes in every enemy corpse, scaled by the world's loot-amount setting |
+| Loot | `class_loot_weights` | Thins a class's gear out of random drops so the others drop more; default 0.4 for warrior, which evens out the weapon pool. It cannot boost a class, and pulled items stop dropping at random |
 | Crafting | `salvage_returns` | Raises the upgrade-recycling setting's ceiling (runes back from salvaging upgraded gear) |
 | Crafting | `cheaper_upgrades` | Vendor upgrade costs ×0.5; salvage pays a share of the upgrade price, so it drops too |
 | Crafting | `crafting_time` | Crafting time ×0.1 |
